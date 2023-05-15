@@ -983,17 +983,25 @@ class FI_report_classifier(object):
             self._gold_acck+=gold_result_list[1]
   
             # best f1 score (golden)
-            tot_classes = len(torch.unique(G_clas))
-            golden_best_preds = torch.squeeze(G_clas[:mink])
-            f1 = F1Score(task='multiclass', num_classes= tot_classes)
-            self.goldenf1_1 = f1(golden_best_preds, G_target)
+            # tot_classes = len(torch.unique(G_clas))
+            # golden_best_preds = torch.squeeze(G_clas[:mink])
+            # f1 = F1Score(task='multiclass', num_classes= tot_classes)
+            G_best_preds = torch.squeeze(G_clas[:mink])
+            classes_G = torch.unique(torch.cat((G_best_preds, G_target)))
+            tot_1_G = len(classes_G)
+            f1_1 = F1Score(task='multiclass', num_classes= tot_1_G)
+            self.goldenf1_1+=f1_1(G_best_preds, G_target)
             
 
             # kth best f1 score, sum of f1's (golden)
             goldenf1_k_score = 0
+            all_preds = torch.flatten(G_clas)
+            classes_G = torch.cat((all_preds, G_target))
+            tot_k_G = len(torch.unique(classes_G))
+            f1_k = F1Score(task='multiclass', num_classes= tot_k_G)
             for pred in G_clas[:maxk]:
-                goldenf1_k_score += f1(pred, G_target)
-            self.goldenf1_k = goldenf1_k_score
+                goldenf1_k_score += f1_k(pred, G_target)
+            self.goldenf1_k += goldenf1_k_score
 
             if index in self._FI_dictionary:
                 ResTop1=""
@@ -1071,15 +1079,20 @@ class FI_report_classifier(object):
                 self._faul_acck+=faul_result_list[1]
 
                 # best f1 score (fault)
-                tot_classes_FI = len(torch.unique(FI_clas))
                 FI_best_preds = torch.squeeze(FI_clas[:mink])
-                f1 = F1Score(task='multiclass', num_classes= tot_classes_FI)
-                self.fault_f1_1 += f1(FI_best_preds, FI_target)
+                classes_FI = torch.unique(torch.cat((FI_best_preds, FI_target)))
+                tot_1_FI = len(classes_FI)
+                f1_1 = F1Score(task='multiclass', num_classes= tot_1_FI)
+                self.fault_f1_1 += f1_1(FI_best_preds, FI_target)
 
                 # kth best f1 score, sum of f1's (fault)
                 FIf1_k_score = 0
-                for pred in G_clas[:maxk]:
-                    FIf1_k_score += f1(pred, G_target)
+                all_preds = torch.flatten(FI_clas)
+                classes_FI = torch.cat((all_preds, FI_target))
+                tot_k_FI = len(torch.unique(classes_FI))
+                f1_k = F1Score(task='multiclass', num_classes= tot_k_FI)
+                for pred in FI_clas[:maxk]:
+                    FIf1_k_score += f1_k(pred, FI_target)
                 self.fault_f1_k += FIf1_k_score
                 
             else:
