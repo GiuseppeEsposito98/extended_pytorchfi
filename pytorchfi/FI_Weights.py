@@ -5,8 +5,7 @@ import json
 import sys, os
 import pandas as pd
 import math
-from torchmetrics import F1Score
-# forse funziona, cambia il file sh da cuda a cpu
+
 import matplotlib.pyplot as plt
 
 import sys
@@ -699,12 +698,8 @@ class FI_report_classifier(object):
         self._num_images=0
         self._gold_acc1=torch.tensor([0.0])
         self._gold_acck=torch.tensor([0.0])
-        self.goldenf1_1=torch.tensor([0.0])
-        self.goldenf1_k=torch.tensor([0.0])
         self._faul_acc1=torch.tensor([0.0])
         self._faul_acck=torch.tensor([0.0])
-        self.fault_f1_1=torch.tensor([0.0])
-        self.fault_f1_k=torch.tensor([0.0])
         
         self._report_dictionary={}
         self._FI_results_dictionary={}
@@ -793,7 +788,7 @@ class FI_report_classifier(object):
                                         'img_Top1_Crit','img_Top1_SDC','img_Top1_Masked',
                                         'img_Topk_Crit','img_Topk_SDC','img_Topk_Masked',
                                         'fault_ACC@1','fault_ACC@k','Class_Top1','Class_Topk',
-                                        'goldenf1_1', 'fault_f1@1', 'goldenf1_k', 'fault_f1@k'])  
+                                        'goldenf1_1', 'goldenf1_k', 'fault_f1@1', 'fault_f1@k'])  
             self._fsim_report.to_csv(os.path.join(self.log_path,self.fault_report_filename),sep=',')
         else:
             self._fsim_report = pd.read_csv(os.path.join(self.log_path,self.fault_report_filename),index_col=[0])           
@@ -834,11 +829,7 @@ class FI_report_classifier(object):
         self._gold_acck=torch.tensor([0.0])
         self._faul_acc1=torch.tensor([0.0])
         self._faul_acck=torch.tensor([0.0])
-        self.goldenf1_1=torch.tensor([0.0])
-        self.goldenf1_k=torch.tensor([0.0])
-        self.fault_f1_1=torch.tensor([0.0])
-        self.fault_f1_k=torch.tensor([0.0])
-        self._num_images=0          
+        self._num_images=0     
 
     def _update_chpt_info(self):    
         self.Top1_faulty_code=0 # 0: Masked; 1: SDC; 2; Critical; 3=crash
@@ -852,6 +843,7 @@ class FI_report_classifier(object):
         self.check_point["topk"]["images"]["SDC"]+=self.T5_SDC
         self.check_point["topk"]["images"]["Masked"]+=self.T5_Masked
 
+            # break
         if(self.T1_Critical!=0):
             # self.Critical_top1+=1
             self.check_point["top1"]["fault"]["Critical"]+=1
@@ -887,20 +879,27 @@ class FI_report_classifier(object):
     def update_fault_parse_results(self):
         self._fault_dictionary['gold_ACC@1'] = self.GACC1.item()
         self._fault_dictionary['gold_ACC@k'] = self.GACCk.item()
-        self._fault_dictionary['goldenf1_1'] = self.goldenf1_1.item()
-        self._fault_dictionary['goldenf1_k'] = self.goldenf1_k.item()
         self._fault_dictionary['img_Top1_Crit'] = self.T1_Critical
         self._fault_dictionary['img_Top1_SDC'] = self.T1_SDC
         self._fault_dictionary['img_Top1_Masked'] = self.T1_Masked
+        self._fault_dictionary['fault_ACC@1'] = self.FACC1.item()
         self._fault_dictionary['img_Topk_Crit'] = self.T5_Critical
         self._fault_dictionary['img_Topk_SDC'] = self.T5_SDC
         self._fault_dictionary['img_Topk_Masked'] = self.T5_Masked
-        self._fault_dictionary['fault_ACC@1'] = self.FACC1.item()
         self._fault_dictionary['fault_ACC@k'] = self.FACCk.item()
-        self._fault_dictionary['fault_f1@1'] = self.fault_f1_1.item()
-        self._fault_dictionary['fault_f1@k'] = self.fault_f1_k.item()
         self._fault_dictionary['Class_Top1'] = self.Top1_faulty_code
         self._fault_dictionary['Class_Topk'] = self.Topk_faulty_code
+    
+    def set_f1_values(self, best_f1, k_f1, header):
+        logger.info(header)
+        logger.info(f'best_f1: {best_f1}')
+        if header == 'Golden':
+            self._fault_dictionary['goldenf1_1'] = best_f1.item()
+            self._fault_dictionary['goldenf1_k'] = k_f1.item()
+        elif header == 'FSIM':
+            logger.info(f'best_f1: {best_f1}')
+            self._fault_dictionary['fault_f1@1'] = best_f1.item()
+            self._fault_dictionary['fault_f1@k'] = k_f1.item()
 
 
     def create_report(self,file_name):
@@ -954,25 +953,19 @@ class FI_report_classifier(object):
         self.Full_report = pd.DataFrame()
         for index in self._golden_dictionary:
             self.Golden=self._golden_dictionary[index]
-            # return the tensors corresponding to the labels (i think one hot encoded) from both faulty and golden model and the ground truth
             G_pred=torch.tensor(self.Golden['pred'],requires_grad=False).t()
             G_clas=torch.tensor(self.Golden['clas'],requires_grad=False).t()
             G_target=torch.tensor(self.Golden['target'],requires_grad=False)
             batch_size = G_target.size(0)
-            # self.G_pred_current = G_pred
-            # self.G_clas_current = G_clas
-
+            
             maxk=max(topk)
             mink=min(topk)
-            # correctly predicted class by the golden model (boolean mask: 
-            # 1° row -> most probable prediction,
-            # 2° row -> second most probable prediction)
-            CMPGolden=G_clas.eq(G_target[None])
-            
 
-            # computes the golden accuracy for each class
+            CMPGolden=G_clas.eq(G_target[None])
+
             self.Gacc1=CMPGolden[:mink].sum(dim=0,dtype=torch.float32)
             self.Gacc5=CMPGolden[:maxk].sum(dim=0,dtype=torch.float32)
+
             gold_result_list = []
             for k in topk:
                 gold_correct_k = CMPGolden[:k].flatten().sum(dtype=torch.float32)
@@ -981,28 +974,7 @@ class FI_report_classifier(object):
             self._num_images+=batch_size
             self._gold_acc1+=gold_result_list[0]
             self._gold_acck+=gold_result_list[1]
-  
-            # best f1 score (golden)
-            # tot_classes = len(torch.unique(G_clas))
-            # golden_best_preds = torch.squeeze(G_clas[:mink])
-            # f1 = F1Score(task='multiclass', num_classes= tot_classes)
-            G_best_preds = torch.squeeze(G_clas[:mink])
-            classes_G = torch.unique(torch.cat((G_best_preds, G_target)))
-            tot_1_G = len(classes_G)
-            f1_1 = F1Score(task='multiclass', num_classes= tot_1_G)
-            self.goldenf1_1+=f1_1(G_best_preds, G_target)
             
-
-            # kth best f1 score, sum of f1's (golden)
-            goldenf1_k_score = 0
-            all_preds = torch.flatten(G_clas)
-            classes_G = torch.cat((all_preds, G_target))
-            tot_k_G = len(torch.unique(classes_G))
-            f1_k = F1Score(task='multiclass', num_classes= tot_k_G)
-            for pred in G_clas[:maxk]:
-                goldenf1_k_score += f1_k(pred, G_target)
-            self.goldenf1_k += goldenf1_k_score
-
             if index in self._FI_dictionary:
                 ResTop1=""
                 ResTop5=""
@@ -1077,24 +1049,6 @@ class FI_report_classifier(object):
 
                 self._faul_acc1+=faul_result_list[0]
                 self._faul_acck+=faul_result_list[1]
-
-                # best f1 score (fault)
-                FI_best_preds = torch.squeeze(FI_clas[:mink])
-                classes_FI = torch.unique(torch.cat((FI_best_preds, FI_target)))
-                tot_1_FI = len(classes_FI)
-                f1_1 = F1Score(task='multiclass', num_classes= tot_1_FI)
-                self.fault_f1_1 += f1_1(FI_best_preds, FI_target)
-
-                # kth best f1 score, sum of f1's (fault)
-                FIf1_k_score = 0
-                all_preds = torch.flatten(FI_clas)
-                classes_FI = torch.cat((all_preds, FI_target))
-                tot_k_FI = len(torch.unique(classes_FI))
-                f1_k = F1Score(task='multiclass', num_classes= tot_k_FI)
-                for pred in FI_clas[:maxk]:
-                    FIf1_k_score += f1_k(pred, FI_target)
-                self.fault_f1_k += FIf1_k_score
-                
             else:
                 self.T5_Critical+=batch_size
                 self.T1_Critical+=batch_size
@@ -1384,7 +1338,6 @@ class FI_manager(object):
         self.FI_framework=FI_framework(log_path)
         self._golden_file_name=""
         self._faulty_file_name=""
-        # va bene con i json ma non con i csv
         try:
             os.makedirs(self.log_path)           
         except:
