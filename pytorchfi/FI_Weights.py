@@ -891,13 +891,13 @@ class FI_report_classifier(object):
         self._fault_dictionary['Class_Topk'] = self.Topk_faulty_code
     
     def set_f1_values(self, best_f1, k_f1, header):
-        logger.info(header)
-        logger.info(f'best_f1: {best_f1}')
+        # logger.info(header)
+        # logger.info(f'best_f1: {best_f1}')
         if header == 'Golden':
             self._fault_dictionary['goldenf1_1'] = best_f1.item()
             self._fault_dictionary['goldenf1_k'] = k_f1.item()
         elif header == 'FSIM':
-            logger.info(f'best_f1: {best_f1}')
+            # logger.info(f'best_f1: {best_f1}')
             self._fault_dictionary['fault_f1@1'] = best_f1.item()
             self._fault_dictionary['fault_f1@k'] = k_f1.item()
 
