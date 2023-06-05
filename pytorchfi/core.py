@@ -33,6 +33,7 @@ class FaultInjection:
         self.layers_type = []
         self.layers_dim = []
         self.weights_size = []
+        self.input_size = []
         self.batch_size = batch_size
 
         self._input_shape = input_shape
@@ -380,10 +381,11 @@ class FaultInjection:
     def _save_output_size(self, module, input_val, output):
         shape = list(output.size())
         dim = len(shape)
-
+        self.input_size.append(input_val[0].size())
         self.layers_type.append(type(module))
         self.layers_dim.append(dim)
         self.output_size.append(shape)
+        # breakpoint()
 
     def update_layer(self, value=1):
         self.current_layer += value
@@ -459,12 +461,15 @@ class FaultInjection:
             + "\n"
         )
         for layer, _dim in enumerate(self.output_size):
-            strt_try = "(0,0,0,0)" if "all" in self._inj_layer_types else str(list(self.weights_size[layer]))
+            try: 
+                strt_try = "(0,0,0,0)" if "all" in self._inj_layer_types else str(list(self.weights_size[layer]))
+            except:
+                breakpoint()
             line_new = "{:>5}  {:>15}  {:>10} {:>20} {:>20}".format(
                 layer,
                 str(self.layers_type[layer]).split(".")[-1].split("'")[0],
                 str(self.layers_dim[layer]),
-                strt_try,
+                str(list(self.weights_size[layer])),
                 str(self.output_size[layer]),
             )
             summary_str += line_new + "\n"
