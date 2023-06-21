@@ -11,6 +11,50 @@ from copy import deepcopy
 def random_value(min_val: int = -1, max_val: int = 1):
     return random.uniform(min_val, max_val)
 
+def relative_faulty_iou(gt_labels: torch.Tensor, _gt_bbs: torch.Tensor, pred_labels: torch.Tensor, pred_bb: torch.Tensor, 
+                        pred_scores: torch.Tensor, golden_dict: Dict['str', torch.Tensor]):
+    
+    faulty_dict, gt_dict = setup_dicts(pred_labels=pred_labels, pred_scores=pred_scores, pred_bb=pred_bb, gt_labels=gt_labels, _gt_bbs=_gt_bbs)
+
+    score_per_label = list()
+    for G_label, bbs in golden_dict.items():
+        for t_label in list(gt_dict.keys()):
+            if G_label == t_label:
+                for F_label in list(faulty_dict.keys()):
+                    if F_label ==t_label:
+                        fault_bbs = np.array(faulty_dict[F_label])
+                        for bb in bbs:
+                            disatnces1 = np.linalg.norm(bb[0:2] - fault_bbs[:,0:2], axis=1)
+                            disatnces2 = np.linalg.norm(bb[2:4] - fault_bbs[:,2:4], axis=1)
+
+                            buffer = disatnces1 + disatnces2
+
+                            # take the lowest one
+                            candidate_idx = np.argmin(buffer)
+
+                            # take the array correspinding to the lowest distance from the reference gt_bb 
+                            candidate_bb = fault_bbs[candidate_idx]
+
+                            # compute the score between the nearest bb and the gt_bb
+                            score = compute_iou(bb, candidate_bb)
+
+                            # save result
+                            score_per_label.append((F_label, score))
+
+                            pred_bbs = np.delete(pred_bbs, np.argmin(buffer), axis = 0)
+
+                            # pred_bbs[candidate_idx] = np.array([np.nan, np.nan, np.nan, np.nan])
+                            if len(pred_bbs) == 0:
+                                break
+    return score_per_label
+
+                            
+
+
+
+
+
+
 # def relative_iou(gt_labels: torch.Tensor, gt_bb: torch.Tensor, pred_labels: torch.Tensor, pred_bb: torch.Tensor):
 #     score_per_label = list()
 #     for idx, label in enumerate(pred_labels):
@@ -18,56 +62,45 @@ def random_value(min_val: int = -1, max_val: int = 1):
 #             score = compute_iou(gt_bb[idx], pred_bb[idx])
 #             score_per_label.append((label, score))
 #     return score_per_label
-def relative_faulty_iou(gt_labels: torch.Tensor, gt_bb: torch.Tensor, pred_labels: torch.Tensor, pred_bb: torch.Tensor, pred_scores: torch.Tensor, golden_correspondance: dict):
-    for lab_idx in list(golden_correspondance.keys()):
-        label, idx = lab_idx.split('_')
+# def relative_faulty_iou(gt_labels: torch.Tensor, gt_bb: torch.Tensor, pred_labels: torch.Tensor, pred_bb: torch.Tensor, pred_scores: torch.Tensor, golden_correspondance: dict):
+#     for lab_idx in list(golden_correspondance.keys()):
+#         label, idx = lab_idx.split('_')
     
 
 def relative_iou(gt_labels: torch.Tensor, _gt_bbs: torch.Tensor, pred_labels: torch.Tensor, pred_bb: torch.Tensor, pred_scores: torch.Tensor):
     score_per_label = list()
-    # save true bounding boxes corresponding to each label
-    # gt_dict = defaultdict(lambda:[])
-    # gt_labels = torch.squeeze(gt_labels)
-    # for idx, label in enumerate(gt_labels.tolist()):
-    #     gt_bb = torch.squeeze(gt_bb)
-    #     gt_dict[str(label)].append(gt_bb[idx].numpy())
-    # print(pred_dict.keys())
 
-    # save predicted bounding boxes corresponding to each label
-    # pred_dict = defaultdict(lambda:[])
-    # for (idx1, label_pred), score, (idx2, label_gt) in zip(enumerate(pred_labels.tolist()), pred_scores.tolist(), enumerate(gt_labels.tolist())):
-    #     gt_bb = torch.squeeze(gt_bb)
-    #     gt_dict[str(label_gt)].append(gt_bb[idx2].numpy())
-    #     if score > 0.7:
-    #         pred_dict[str(label_pred)].append(pred_bb[idx1].numpy())
 
     pred_dict, gt_dict = setup_dicts(pred_labels, pred_scores, pred_bb, gt_labels, _gt_bbs)
-    
+
     correspondence = dict()
-    # print(gt_dict.keys())
+
     for label in list(pred_dict.keys()):
-        # print(f'pred_dict[label]: {pred_dict[label]}')
-        bb_id = 0
+
+        indices_per_label = list()
+        # bb_id = 0
         if label in list(gt_dict.keys()):
             pred_bbs = np.array(pred_dict[label])
+            # print(f'pred_bbs: {pred_bbs}')
             gt_bbs = gt_dict[label]
+            # print(f'gt_bbs: {gt_bbs}')
+            # print(f'label: {label}')
             for gt_bb in gt_bbs:
                 # compute the array-wise subtraction between the current gt_bb and each pred_bb corresponding to the same label
-                distances = np.abs(gt_bb - pred_bbs)
-                # print(f'pred_bb: {pred_bb}')
-                # print(f'gt_bb: {gt_bb}')
-                # print(f'distances: {distances}')
-                # break
-                # break
-
-                # sum all distances
-                buffer = np.sum(distances, axis = 1)
-                # print(f'buffer: {buffer}')
+                # distances
+                #distances = np.abs(gt_bb - pred_bbs)
+                disatnces1 = np.linalg.norm(gt_bb[0:2] - pred_bbs[:,0:2], axis=1)
+                disatnces2 = np.linalg.norm(gt_bb[2:4] - pred_bbs[:,2:4], axis=1)
+                
+                # sum distances
+                buffer = disatnces1 + disatnces2
+                # buffer = np.sum(distances, axis = 1)
+                
+                # take the lowest one
+                candidate_idx = np.argmin(buffer)
 
                 # take the array correspinding to the lowest distance from the reference gt_bb 
-                candidate_idx = np.argmin(buffer)
                 candidate_bb = pred_bbs[candidate_idx]
-                # print(f'candidate_bb: {candidate_bb}')
 
                 # compute the score between the nearest bb and the gt_bb
                 score = compute_iou(gt_bb, candidate_bb)
@@ -75,32 +108,33 @@ def relative_iou(gt_labels: torch.Tensor, _gt_bbs: torch.Tensor, pred_labels: to
                 # save result
                 score_per_label.append((label, score))
 
-                lab_bb_id = str(label) + str(candidate_idx)
-                correspondence[lab_bb_id] = candidate_bb
+                # lab_bb_id = str(label) +'_'+ str(candidate_idx)
 
-                bb_id += 1
-                # set to the selected position an array with values such that it will never be chosen again
-                pred_bbs[candidate_idx] = np.array([10000, 10000, 20000, 20000])
-                #preds_bbs = np.delete(pred_bbs, np.argmin(buffer))
-                # it can happen that the predicted bbs will not be predicted again what if i use the labels?
-                # i cannot keep track of the predictions but i can keep track of the gt because the gt will be always the same
-                # as soon as i have the ground truth it will result that the prediction will not be moved there will be a different one
-                # then if i go for indices, the "for" that will check for all predictions, risk to go out of bounds because
-                # the new 
-    return score_per_label, correspondence
+                # correspondence[lab_bb_id] = candidate_bb
 
-def setup_dicts(pred_labels, pred_scores, pred_bb, gt_labels, _gt_bbs):
+                # bb_id += 1
+                # delete the already extracted array
+                # questo va cambiato, si può pensare ad una lista di indici bannati (da cui non si può scegliere)
+                pred_bbs = np.delete(pred_bbs, np.argmin(buffer), axis = 0)
+
+                # pred_bbs[candidate_idx] = np.array([np.nan, np.nan, np.nan, np.nan])
+                if len(pred_bbs) == 0:
+                    break
+    return score_per_label, pred_dict
+
+def setup_dicts(pred_labels:torch.Tensor, pred_scores:torch.Tensor, pred_bb:torch.Tensor, gt_labels:torch.Tensor , _gt_bbs:torch.Tensor):
 
     pred_dict = defaultdict(lambda:[])
     gt_dict = defaultdict(lambda:[])
-
     gt_labels = torch.squeeze(gt_labels)
 
-    for (idx1, label_pred), score, (idx2, label_gt) in zip(enumerate(pred_labels.tolist()), pred_scores.tolist(), enumerate(gt_labels.tolist())):
+    for idx, label in enumerate(gt_labels):
         gt_bb = torch.squeeze(_gt_bbs)
-        gt_dict[str(label_gt)].append(gt_bb[idx2].numpy())
-        if score > 0.7:
-            pred_dict[str(label_pred)].append(pred_bb[idx1].numpy())
+        gt_dict[int(label)].append(gt_bb[idx].numpy()) 
+
+    for (idx1, label), score in zip(enumerate(pred_labels.tolist()), pred_scores.tolist()):
+        if score > 0.6:
+            pred_dict[int(label)].append(pred_bb[idx1].numpy())
             
     return pred_dict, gt_dict
 
@@ -132,6 +166,10 @@ def compute_iou(gt_bb: List[Union[float, float, float, float]],
 
     score = (intersection / union)
     return score
+
+
+def extract_coordinates(bb):
+    return math.floor(bb[0]), math.floor(bb[1]), math.ceil(bb[2]), math.ceil(bb[2])
 
 
 def extract_coordinates(bb):

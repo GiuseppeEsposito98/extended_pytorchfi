@@ -5,6 +5,7 @@ import json
 import sys, os
 import pandas as pd
 import math
+from collections import defaultdict
 
 import matplotlib.pyplot as plt
 
@@ -15,7 +16,7 @@ import torch
 import pytorchfi
 import numpy as np
 import pytorchfi.core as core
-from pytorchfi.util import random_value, relative_iou, relative_faulty_iou
+from pytorchfi.util import random_value, relative_iou, setup_dicts, compute_iou, compute_mAP
 from pytorchfi.core import *
 from pytorchfi.neuron_error_models import *
 from torchmetrics.detection.mean_ap import MeanAveragePrecision
@@ -818,20 +819,12 @@ class FI_report_classifier(object):
 
 
     def reset_counter(self):
-        self.GACC1=torch.tensor([0.0])
-        self.GACCk=torch.tensor([0.0])
-        self.FACC1=torch.tensor([0.0])
-        self.FACCk=torch.tensor([0.0])
+        
+        self.mAP=torch.tensor([0.0])
+        self.iou_per_box = torch.tensor([0.0])
         self.T1_SDC=0
         self.T1_Masked=0
         self.T1_Critical=0
-        self.T5_SDC=0
-        self.T5_Masked=0
-        self.T5_Critical=0
-        self._gold_acc1=torch.tensor([0.0])
-        self._gold_acck=torch.tensor([0.0])
-        self._faul_acc1=torch.tensor([0.0])
-        self._faul_acck=torch.tensor([0.0])
         self._num_images=0     
 
     def _update_chpt_info(self):    
@@ -893,15 +886,7 @@ class FI_report_classifier(object):
         self._fault_dictionary['Class_Top1'] = self.Top1_faulty_code
         self._fault_dictionary['Class_Topk'] = self.Topk_faulty_code
     
-    def set_f1_values(self, best_f1, k_f1, header):
-        # logger.info(header)
-        if header == 'Golden':
-            self._fault_dictionary['goldenf1_1'] = best_f1.item()*100 
-            self._fault_dictionary['goldenf1_k'] = k_f1.item()*100
-        elif header == 'FSIM':
-            # logger.info(f'best_f1: {best_f1}')
-            self._fault_dictionary['fault_f1@1'] = best_f1.item()*100
-            self._fault_dictionary['fault_f1@k'] = k_f1.item()*100
+
 
 
     def create_report(self,file_name):
@@ -956,6 +941,7 @@ class FI_report_classifier(object):
         compute golden mAP
         compute faulty / golden mAP
         '''
+        print('ciao1')
         self._golden_dictionary=self.load_report(golden_file_report)
         self._FI_dictionary=self.load_report(faulty_file_report)
         self.Full_report = pd.DataFrame()
@@ -966,14 +952,19 @@ class FI_report_classifier(object):
             G_pred_scores=torch.tensor(self.Golden['scores'], requires_grad=False)
             G_gt_bb=torch.tensor(self.Golden['gt_boxes'],requires_grad=False)
             G_gt_labels=torch.tensor(self.Golden['gt_labels'],requires_grad=False)
-
-            golden_iou_scores, golden_correspondance = relative_iou(G_gt_labels, G_gt_bb, G_pred_labels, G_pred_bb, G_pred_scores)
+            print('ciao2')
+            # this function must be improved
+            golden_iou_scores, golden_pred_dict = relative_iou(G_gt_labels, G_gt_bb, G_pred_labels, G_pred_bb, G_pred_scores)
             print(golden_iou_scores)
 
             metric = MeanAveragePrecision(box_format="xyxy", iou_type="bbox")
-
+            
+            compute_mAP(metric_setting=metric, gt_labels=G_gt_labels, gt_bb= G_gt_bb, pred_labels=G_pred_labels, pred_bb=G_pred_bb, pred_scores=G_pred_scores)
+            
             if index in self._FI_dictionary:
+
                 self.Faulty = self._FI_dictionary[index]
+
                 F_pred_bb=torch.tensor(self.Faulty['pred_boxes'],requires_grad=False)
                 F_pred_labels=torch.tensor(self.Faulty['pred_labels'],requires_grad=False)
                 F_pred_scores=torch.tensor(self.Faulty['scores'], requires_grad=False)
@@ -981,117 +972,102 @@ class FI_report_classifier(object):
                 F_gt_labels=torch.tensor(self.Faulty['gt_labels'],requires_grad=False)
 
 
-                relative_faulty_iou(G_gt_labels, G_gt_bb, G_pred_labels, G_pred_bb, G_pred_scores, golden_correspondance)
-            #batch_size = G_gt_box.size(0)
-            
-            # maxk=max(topk)
-            # mink=min(topk)
+                # this function must be improved
+                # relative_faulty_iou(F_gt_labels, F_gt_bb, F_pred_labels, F_pred_bb, F_pred_scores, golden_pred_dict)
+                faulty_dict, gt_dict = setup_dicts(pred_labels=F_pred_labels, pred_scores=F_pred_scores, pred_bb=F_pred_bb, gt_labels=F_gt_labels, _gt_bbs=F_gt_bb)
+                print(f'fault_dict: {faulty_dict}')
+                print(f'gt_dict: {gt_dict}')
 
-        #     CMPGolden=G_clas.eq(G_target[None])
 
-        #     self.Gacc1=CMPGolden[:mink].sum(dim=0,dtype=torch.float32)
-        #     self.Gacc5=CMPGolden[:maxk].sum(dim=0,dtype=torch.float32)
+                # score_per_label = list()
+                # result = defaultdict(lambda:[])
 
-        #     gold_result_list = []
-        #     for k in topk:
-        #         gold_correct_k = CMPGolden[:k].flatten().sum(dtype=torch.float32)
-        #         gold_result_list.append(gold_correct_k) 
+                # for G_idx, (G_label, bbs) in enumerate(golden_pred_dict.items()):
 
-        #     self._num_images+=batch_size
-        #     self._gold_acc1+=gold_result_list[0]
-        #     self._gold_acck+=gold_result_list[1]
-            
-        #     if index in self._FI_dictionary:
-        #         ResTop1=""
-        #         ResTop5=""
-                
-        #         self.Faulty=self._FI_dictionary[index]
+                #     for t_label in list(gt_dict.keys()):
 
-        #         FI_pred=torch.tensor(self.Faulty['pred'],requires_grad=False).t()
-        #         FI_clas=torch.tensor(self.Faulty['clas'],requires_grad=False).t()
-        #         FI_target=torch.tensor(self.Faulty['target'],requires_grad=False)
+                #         if G_label == t_label:
 
-                
-        #         CMPFaulty=FI_clas.eq(FI_target[None]) # bolean comparison between twoo tnesors of different shape
+                #             for F_label in list(faulty_dict.keys()):
 
-        #         self.Facc1=CMPFaulty[:mink].sum(dim=0,dtype=torch.float32)
-        #         self.Facc5=CMPFaulty[:maxk].sum(dim=0,dtype=torch.float32)
+                #                 if F_label ==t_label:
+                                    
+                #                     fault_bbs = np.array(faulty_dict[F_label])
+                #                     for bb in bbs:
+                #                         disatnces1 = np.linalg.norm(bb[0:2] - fault_bbs[:,0:2], axis=1)
+                #                         disatnces2 = np.linalg.norm(bb[2:4] - fault_bbs[:,2:4], axis=1)
 
-        #         CMPpredGoldFaulty=G_pred.eq(FI_pred).sum(dim=0,dtype=torch.float32)
-        #         CMPClasGoldFaulty=G_clas.eq(FI_clas).sum(dim=0,dtype=torch.float32)
-        #         ResTop1=[]
-        #         ResTop5=[]
+                #                         buffer = disatnces1 + disatnces2
 
-        #         for img in range(batch_size):                
-        #             if self.Gacc1[img] == self.Facc1[img]:
-        #                 if(CMPpredGoldFaulty[img] == CMPClasGoldFaulty[img]):
-        #                     self.T1_Masked+=1                
-        #                     ResTop1.append("Masked")
-        #                     # print(CMPpredGoldFaulty)
-        #                     # print(CMPClasGoldFaulty)
-        #                 else:
-        #                     self.T1_SDC+=1
-        #                     ResTop1.append("SDC")
-        #             else:
-        #                 self.T1_Critical+=1
-        #                 ResTop1.append("Critical")
+                #                         # take the lowest one
+                #                         candidate_idx = np.argmin(buffer)
 
-        #             if self.Gacc5[img] == self.Facc5[img]:
-        #                 if(CMPpredGoldFaulty[img] == CMPClasGoldFaulty[img]):
-        #                     self.T5_Masked+=1
-        #                     ResTop5.append("Masked")
-        #                     # print(CMPpredGoldFaulty)
-        #                     # print(CMPClasGoldFaulty)
-        #                 else:
-        #                     self.T5_SDC+=1
-        #                     ResTop5.append("SDC")
-        #             else:
-        #                 self.T5_Critical+=1
-        #                 ResTop5.append("Critical")
-                    
-        #             FaultID=faulty_file_report.split("/")[-1].split(".")[0]
+                #                         # take the array correspinding to the lowest distance from the reference gt_bb 
+                #                         candidate_bb = fault_bbs[candidate_idx]
 
-        #             if ((G_target[img]==G_clas.t()[img][0]) and (G_target[img]!=FI_clas.t()[img][0])
-        #                 ) or ((G_target[img] in G_clas.t()[img]) and (G_target[img] not in FI_clas.t()[img])):
-        #                 for idx,val in enumerate(G_pred.t()[img]): 
-        #                     df1 = pd.DataFrame({'FaultID':FaultID,
-        #                                         'imID': (batch_size*int(index)+img),                                    
-        #                                         'Pred_idx':idx,
-        #                                         'G_pred':val.item(),
-        #                                         'F_pred':FI_pred.t()[img][idx].item(),
-        #                                         'G_clas':G_clas.t()[img][idx].item(),                                      
-        #                                         'F_clas':FI_clas.t()[img][idx].item(),
-        #                                         'G_Target':G_target[img].item()},index=[0])  
-        #                     self.Full_report = pd.concat([self.Full_report,df1],ignore_index=True)
+                #                         # compute the score between the nearest bb and the gt_bb
+                #                         score = compute_iou(bb, candidate_bb)
+
+                #                         # save result
+                #                         # score_per_label.append((F_label, score))
+
+                #                         pred_bbs = np.delete(pred_bbs, np.argmin(buffer), axis = 0)
+
+                #                         if score == 1:
+                #                             coverage = 'masked'
+                #                             result[G_idx].append(coverage)
+
+                #                         elif score < 1 and score > 0.6:
+                #                             coverage = 'safe'
+                #                             result[G_idx].append(coverage)
+
+                #                         else:
+                #                             coverage = 'critical'
+                #                             result[G_idx].append(coverage)
+
+                #                         # pred_bbs[candidate_idx] = np.array([np.nan, np.nan, np.nan, np.nan])
+                #                         if len(pred_bbs) == 0:
+                #                             break
+                #                         FaultID=faulty_file_report.split("/")[-1].split(".")[0]
+
+                #                         df = pd.DataFrame({'FaultID':FaultID,
+                #                                             'imID': index,                                    
+                #                                             'G_bb_idx':G_idx.item(),
+                #                                             'F_bb_idx':candidate_idx,
+                #                                             'G_lab':G_label,                                      
+                #                                             'F_lab':F_label,
+                #                                             'G_Target':t_label},index=[0])  
+                #                         self.Full_report = pd.concat([self.Full_report,df],ignore_index=True)
+                #                 else:
+                #                     coverage = 'critical'
+                #                     result[G_idx].append(coverage)
+                #                     FaultID=faulty_file_report.split("/")[-1].split(".")[0]
+
+                #                     df = pd.DataFrame({'FaultID':FaultID,
+                #                                         'imID': index,                                    
+                #                                         'G_bb_idx':G_idx.item(),
+                #                                         'F_bb_idx':None,
+                #                                         'G_lab':G_label,                                      
+                #                                         'F_lab':F_label,
+                #                                         'G_Target':t_label},index=[0])
+                #                     self.Full_report = pd.concat([self.Full_report,df],ignore_index=True)
 
                     
-        #         self._FI_dictionary[index]['ResTop1']=ResTop1 
-        #         self._FI_dictionary[index]['ResTopk']=ResTop5 
+        #         self._FI_dictionary[index]['Result']=result
 
-        #         faul_result_list = []
-        #         for k in topk:
-        #             faul_correct_k = CMPFaulty[:k].flatten().sum(dtype=torch.float32)
-        #             faul_result_list.append(faul_correct_k) 
-
-        #         self._faul_acc1+=faul_result_list[0]
-        #         self._faul_acck+=faul_result_list[1]
-        #     else:
-        #         self.T5_Critical+=batch_size
-        #         self.T1_Critical+=batch_size
-        file_name=faulty_file_report.split('/')[-1].split('.')[0]
-        csv_report=f"{file_name}.csv"
-        if(len(self.Full_report)>0):
-            self.Full_report.to_csv(os.path.join(self.log_path,csv_report))
+        # file_name=faulty_file_report.split('/')[-1].split('.')[0]
+        # csv_report=f"{file_name}.csv"
+        # if(len(self.Full_report)>0):
+        #     self.Full_report.to_csv(os.path.join(self.log_path,csv_report))
            
-        self._report_dictionary=self._FI_dictionary
-        self._FI_dictionary={}
-        self._golden_dictionary={}
+        # self._report_dictionary=self._FI_dictionary
+        # self._FI_dictionary={}
+        # self._golden_dictionary={}
         
         #self.save_report(faulty_file_report)
             #return(FI_results_json)
 
-    def merge_reports(self):
-        pass
+
 
 
 class FI_framework(object):
