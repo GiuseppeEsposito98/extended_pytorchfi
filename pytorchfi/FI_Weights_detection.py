@@ -934,14 +934,7 @@ class FI_report_classifier(object):
 
         
         
-    def Fault_parser(self,golden_file_report, faulty_file_report, topk=(1,)):
-        '''
-        compute golden iou score
-        compute faulty iou score
-        compute golden mAP
-        compute faulty / golden mAP
-        '''
-        print('ciao1')
+    def Fault_parser(self,golden_file_report, faulty_file_report):
         self._golden_dictionary=self.load_report(golden_file_report)
         self._FI_dictionary=self.load_report(faulty_file_report)
         self.Full_report = pd.DataFrame()
@@ -1399,7 +1392,7 @@ class FI_manager(object):
 
     def parse_results(self):    
         self.close_faulty_results()    
-        self.FI_report.Fault_parser(self._golden_file_name,self._faulty_file_name,topk=(1,5))
+        self.FI_report.Fault_parser(self._golden_file_name,self._faulty_file_name)
         self.write_reports()
     
     def terminate_fsim(self):

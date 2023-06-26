@@ -1025,6 +1025,7 @@ class FI_report_classifier(object):
                     
                     FaultID=faulty_file_report.split("/")[-1].split(".")[0]
 
+                    # why do you do it only for the classes corresponding in G and not in F?
                     if ((G_target[img]==G_clas.t()[img][0]) and (G_target[img]!=FI_clas.t()[img][0])
                         ) or ((G_target[img] in G_clas.t()[img]) and (G_target[img] not in FI_clas.t()[img])):
                         for idx,val in enumerate(G_pred.t()[img]): 
