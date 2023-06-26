@@ -982,7 +982,7 @@ class FI_report_classifier(object):
                                         self.Full_report = pd.concat([self.Full_report,df],ignore_index=True)
                                 else:
                                     coverage = 'critical'
-                                    result[G_idx].append((coverage, score))
+                                    result[G_idx].append((coverage, None))
                                     FaultID=faulty_file_report.split("/")[-1].split(".")[0]
 
                                     df = pd.DataFrame({'FaultID':FaultID,
