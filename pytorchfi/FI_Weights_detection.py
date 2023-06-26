@@ -700,66 +700,37 @@ class FI_report_classifier(object):
         self._kW=0
         self._layer=0    
         self._num_images=0
-        self._gold_acc1=torch.tensor([0.0])
-        self._gold_acck=torch.tensor([0.0])
-        self._faul_acc1=torch.tensor([0.0])
-        self._faul_acck=torch.tensor([0.0])
+        self._gold_iou=torch.tensor([0.0])
+        self._faul_iou=torch.tensor([0.0])
         
         self._report_dictionary={}
         self._FI_results_dictionary={}
         self._fault_dictionary={}        
         self.Top1_faulty_code=0
-        self.Topk_faulty_code=0
-        self.T1_SDC=0
-        self.T1_Masked=0
-        self.T1_Critical=0
-
-        self.T5_SDC=0
-        self.T5_Masked=0
-        self.T5_Critical=0
+        self.SDC=0
+        self.Masked=0
+        self.Critical=0
 
         self.Golden={}
-        self.SDC_top1=0
-        self.SDC_top5=0
-        self.Critical_top1=0
-        self.Critical_top5=0
-        self.Masked_top1=0
-        self.Masked_top5=0
-        self.Gacc1=0
-        self.Gacc5=0
-        self.Facc1=0
-        self.Facc5=0
+        self.SDC=0
+        self.Critical=0
+        self.Masked=0
+        self.Giou=0
+        self.Fiou=0
 
-        self.GACC1=torch.tensor([0.0])
-        self.GACCk=torch.tensor([0.0])
-        self.FACC1=torch.tensor([0.0])
-        self.FACCk=torch.tensor([0.0])
+        self.Giou=torch.tensor([0.0])
+        self.Fiou=torch.tensor([0.0])
         self.Full_report=pd.DataFrame()
 
-        self.Accm_SDC_top1=0
-        self.Accm_SDC_top5=0
-        self.Accm_Critical_top1=0
-        self.Accm_Critical_top5=0
-        self.Accm_Masked_top1=0
-        self.Accm_Masked_top5=0
+        self.ioum_SDC=0
+        self.ioum_Critical=0
+        self.ioum_Masked=0
         self.log_path=log_pah
         self.report_summary={}
         self._fsim_report=pd.DataFrame()
         self.check_point={
             "fault_idx":0,
             "top1": {
-                "fault":{
-                        "Critical":0,
-                        "SDC":0,
-                        "Masked":0
-                        },
-                "images":{
-                        "Critical":0,
-                        "SDC":0,
-                        "Masked":0
-                        }
-            },
-            "topk": {
                 "fault":{
                         "Critical":0,
                         "SDC":0,
@@ -788,11 +759,9 @@ class FI_report_classifier(object):
                 self.check_point=chpt
 
         if not os.path.exists(os.path.join(self.log_path,self.fault_report_filename)):
-            self._fsim_report=pd.DataFrame(columns=['gold_ACC@1','gold_ACC@k',
-                                        'img_Top1_Crit','img_Top1_SDC','img_Top1_Masked',
-                                        'img_Topk_Crit','img_Topk_SDC','img_Topk_Masked',
-                                        'fault_ACC@1','fault_ACC@k','Class_Top1','Class_Topk',
-                                        'goldenf1_1', 'goldenf1_k', 'fault_f1@1', 'fault_f1@k'])  
+            self._fsim_report=pd.DataFrame(columns=['gold_iou@1','gold_iou@k',
+                                        'img_Crit','img_SDC','img_Masked',
+                                        'fault_iou@1','Class'])  
             self._fsim_report.to_csv(os.path.join(self.log_path,self.fault_report_filename),sep=',')
         else:
             self._fsim_report = pd.read_csv(os.path.join(self.log_path,self.fault_report_filename),index_col=[0])           
@@ -822,9 +791,9 @@ class FI_report_classifier(object):
         
         self.mAP=torch.tensor([0.0])
         self.iou_per_box = torch.tensor([0.0])
-        self.T1_SDC=0
-        self.T1_Masked=0
-        self.T1_Critical=0
+        self.SDC=0
+        self.Masked=0
+        self.Critical=0
         self._num_images=0     
 
     def _update_chpt_info(self):    
@@ -832,58 +801,37 @@ class FI_report_classifier(object):
         self.Topk_faulty_code=0 # 0: Masked; 1: SDC; 2; Critical; 3=crash
         self.check_point["fault_idx"]+=1 
 
-        self.check_point["top1"]["images"]["Critical"]+=self.T1_Critical
-        self.check_point["top1"]["images"]["SDC"]+=self.T1_SDC
-        self.check_point["top1"]["images"]["Masked"]+=self.T1_Masked
-        self.check_point["topk"]["images"]["Critical"]+=self.T5_Critical
-        self.check_point["topk"]["images"]["SDC"]+=self.T5_SDC
-        self.check_point["topk"]["images"]["Masked"]+=self.T5_Masked
+        self.check_point["top1"]["images"]["Critical"]+=self.Critical
+        self.check_point["top1"]["images"]["SDC"]+=self.SDC
+        self.check_point["top1"]["images"]["Masked"]+=self.Masked
 
             # break
-        if(self.T1_Critical!=0):
-            # self.Critical_top1+=1
+        if(self.Critical!=0):
+            # self.Critical+=1
             self.check_point["top1"]["fault"]["Critical"]+=1
             self.Top1_faulty_code=2
-        elif self.T1_SDC !=0:
-            # self.SDC_top1+=1
+        elif self.SDC !=0:
+            # self.SDC+=1
             self.check_point["top1"]["fault"]["SDC"]+=1
             self.Top1_faulty_code=1
         else:
-            # self.Masked_top1+=1
+            # self.Masked+=1
             self.check_point["top1"]["fault"]["Masked"]+=1
             self.Top1_faulty_code=0
 
-        if(self.T5_Critical!=0):
-            # self.Critical_top5+=1
-            self.check_point["topk"]["fault"]["Critical"]+=1
-            self.Topk_faulty_code=2
-        elif self.T5_SDC !=0:
-            # self.SDC_top5+=1
-            self.check_point["topk"]["fault"]["SDC"]+=1
-            self.Topk_faulty_code=1
-        else:
-            # self.Masked_top5+=1  
-            self.check_point["topk"]["fault"]["Masked"]+=1
-            self.Topk_faulty_code=0
+
     
-        self.GACC1=self._gold_acc1*100/self._num_images
-        self.GACCk=self._gold_acck*100/self._num_images
-        self.FACC1=self._faul_acc1*100/self._num_images
-        self.FACCk=self._faul_acck*100/self._num_images
+        self.Giou=self._gold_iou*100/self._num_images
+        self.Fiou=self._faul_iou*100/self._num_images
 
 
     def update_fault_parse_results(self):
-        self._fault_dictionary['gold_ACC@1'] = self.GACC1.item()
-        self._fault_dictionary['gold_ACC@k'] = self.GACCk.item()
-        self._fault_dictionary['img_Top1_Crit'] = self.T1_Critical
-        self._fault_dictionary['img_Top1_SDC'] = self.T1_SDC
-        self._fault_dictionary['img_Top1_Masked'] = self.T1_Masked
-        self._fault_dictionary['fault_ACC@1'] = self.FACC1.item()
-        self._fault_dictionary['img_Topk_Crit'] = self.T5_Critical
-        self._fault_dictionary['img_Topk_SDC'] = self.T5_SDC
-        self._fault_dictionary['img_Topk_Masked'] = self.T5_Masked
-        self._fault_dictionary['fault_ACC@k'] = self.FACCk.item()
-        self._fault_dictionary['Class_Top1'] = self.Top1_faulty_code
+        self._fault_dictionary['gold_iou@1'] = self.Giou.item()
+        self._fault_dictionary['img_Crit'] = self.Critical
+        self._fault_dictionary['img_SDC'] = self.SDC
+        self._fault_dictionary['img_Masked'] = self.Masked
+        self._fault_dictionary['fault_iou@1'] = self.Fiou.item()
+        self._fault_dictionary['Class'] = self.Top1_faulty_code
         self._fault_dictionary['Class_Topk'] = self.Topk_faulty_code
     
 
@@ -973,89 +921,91 @@ class FI_report_classifier(object):
 
 
                 # score_per_label = list()
-                # result = defaultdict(lambda:[])
+                result = defaultdict(lambda:[])
 
-                # for G_idx, (G_label, bbs) in enumerate(golden_pred_dict.items()):
+                for G_idx, (G_label, bbs) in enumerate(golden_pred_dict.items()):
 
-                #     for t_label in list(gt_dict.keys()):
+                    for t_label in list(gt_dict.keys()):
 
-                #         if G_label == t_label:
+                        if G_label == t_label:
 
-                #             for F_label in list(faulty_dict.keys()):
+                            for F_label in list(faulty_dict.keys()):
 
-                #                 if F_label ==t_label:
+                                if F_label ==t_label:
                                     
-                #                     fault_bbs = np.array(faulty_dict[F_label])
-                #                     for bb in bbs:
-                #                         disatnces1 = np.linalg.norm(bb[0:2] - fault_bbs[:,0:2], axis=1)
-                #                         disatnces2 = np.linalg.norm(bb[2:4] - fault_bbs[:,2:4], axis=1)
+                                    fault_bbs = np.array(faulty_dict[F_label])
+                                    for bb in bbs:
+                                        disatnces1 = np.linalg.norm(bb[0:2] - fault_bbs[:,0:2], axis=1)
+                                        disatnces2 = np.linalg.norm(bb[2:4] - fault_bbs[:,2:4], axis=1)
 
-                #                         buffer = disatnces1 + disatnces2
+                                        buffer = disatnces1 + disatnces2
 
-                #                         # take the lowest one
-                #                         candidate_idx = np.argmin(buffer)
+                                        # take the lowest one
+                                        candidate_idx = np.argmin(buffer)
 
-                #                         # take the array correspinding to the lowest distance from the reference gt_bb 
-                #                         candidate_bb = fault_bbs[candidate_idx]
+                                        # take the array correspinding to the lowest distance from the reference gt_bb 
+                                        candidate_bb = fault_bbs[candidate_idx]
 
-                #                         # compute the score between the nearest bb and the gt_bb
-                #                         score = compute_iou(bb, candidate_bb)
+                                        # compute the score between the nearest bb and the gt_bb
+                                        score = compute_iou(bb, candidate_bb)
 
-                #                         # save result
-                #                         # score_per_label.append((F_label, score))
+                                        # save result
+                                        # score_per_label.append((F_label, score))
 
-                #                         pred_bbs = np.delete(pred_bbs, np.argmin(buffer), axis = 0)
+                                        pred_bbs = np.delete(pred_bbs, np.argmin(buffer), axis = 0)
 
-                #                         if score == 1:
-                #                             coverage = 'masked'
-                #                             result[G_idx].append(coverage)
+                                        if score == 1:
+                                            coverage = 'masked'
+                                            result[G_idx].append((coverage, score))
 
-                #                         elif score < 1 and score > 0.6:
-                #                             coverage = 'safe'
-                #                             result[G_idx].append(coverage)
+                                        elif score < 1 and score > 0.6:
+                                            coverage = 'safe'
+                                            result[G_idx].append((coverage, score))
 
-                #                         else:
-                #                             coverage = 'critical'
-                #                             result[G_idx].append(coverage)
+                                        else:
+                                            coverage = 'critical'
+                                            result[G_idx].append((coverage, score))
 
-                #                         # pred_bbs[candidate_idx] = np.array([np.nan, np.nan, np.nan, np.nan])
-                #                         if len(pred_bbs) == 0:
-                #                             break
-                #                         FaultID=faulty_file_report.split("/")[-1].split(".")[0]
+                                        # pred_bbs[candidate_idx] = np.array([np.nan, np.nan, np.nan, np.nan])
+                                        if len(pred_bbs) == 0:
+                                            break
 
-                #                         df = pd.DataFrame({'FaultID':FaultID,
-                #                                             'imID': index,                                    
-                #                                             'G_bb_idx':G_idx.item(),
-                #                                             'F_bb_idx':candidate_idx,
-                #                                             'G_lab':G_label,                                      
-                #                                             'F_lab':F_label,
-                #                                             'G_Target':t_label},index=[0])  
-                #                         self.Full_report = pd.concat([self.Full_report,df],ignore_index=True)
-                #                 else:
-                #                     coverage = 'critical'
-                #                     result[G_idx].append(coverage)
-                #                     FaultID=faulty_file_report.split("/")[-1].split(".")[0]
+                                        FaultID=faulty_file_report.split("/")[-1].split(".")[0]
 
-                #                     df = pd.DataFrame({'FaultID':FaultID,
-                #                                         'imID': index,                                    
-                #                                         'G_bb_idx':G_idx.item(),
-                #                                         'F_bb_idx':None,
-                #                                         'G_lab':G_label,                                      
-                #                                         'F_lab':F_label,
-                #                                         'G_Target':t_label},index=[0])
-                #                     self.Full_report = pd.concat([self.Full_report,df],ignore_index=True)
+                                        df = pd.DataFrame({'FaultID':FaultID,
+                                                            'imID': index,                                    
+                                                            'G_bb_idx':G_idx.item(),
+                                                            'F_bb_idx':candidate_idx,
+                                                            'G_lab':G_label,                                      
+                                                            'F_lab':F_label,
+                                                            'G_Target':t_label},index=[0])  
+                                        self.Full_report = pd.concat([self.Full_report,df],ignore_index=True)
+                                else:
+                                    coverage = 'critical'
+                                    result[G_idx].append((coverage, score))
+                                    FaultID=faulty_file_report.split("/")[-1].split(".")[0]
+
+                                    df = pd.DataFrame({'FaultID':FaultID,
+                                                        'imID': index,                                    
+                                                        'G_bb_idx':G_idx.item(),
+                                                        'F_bb_idx':None,
+                                                        'G_lab':G_label,                                      
+                                                        'F_lab':F_label,
+                                                        'G_Target':t_label},index=[0])
+                                    
+                                    self.Full_report = pd.concat([self.Full_report,df],ignore_index=True)
 
                     
-        #         self._FI_dictionary[index]['Result']=result
+                self._FI_dictionary[index]['Result']=result
 
-        # file_name=faulty_file_report.split('/')[-1].split('.')[0]
-        # csv_report=f"{file_name}.csv"
-        # if(len(self.Full_report)>0):
-        #     self.Full_report.to_csv(os.path.join(self.log_path,csv_report))
+        file_name=faulty_file_report.split('/')[-1].split('.')[0]
+        csv_report=f"{file_name}.csv"
+        if(len(self.Full_report)>0):
+            self.Full_report.to_csv(os.path.join(self.log_path,csv_report))
            
-        # self._report_dictionary=self._FI_dictionary
-        # self._FI_dictionary={}
-        # self._golden_dictionary={}
+        self._report_dictionary=self._FI_dictionary
+        self._FI_dictionary={}
+        self._golden_dictionary={}
         
         #self.save_report(faulty_file_report)
             #return(FI_results_json)
