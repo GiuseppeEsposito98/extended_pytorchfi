@@ -968,6 +968,7 @@ class FI_report_classifier(object):
                                             result[t_label].append((coverage, score))
                                             self.Critical += 1
 
+
                                         # pred_bbs[candidate_idx] = np.array([np.nan, np.nan, np.nan, np.nan])
                                         if len(pred_bbs) == 0:
                                             break
@@ -984,8 +985,10 @@ class FI_report_classifier(object):
                                         self.Full_report = pd.concat([self.Full_report,df],ignore_index=True)
                                 else:
                                     coverage = 'critical'
+                                    
                                     result[t_label].append((coverage, score))
                                     self.Critical += 1
+
 
                                     FaultID=faulty_file_report.split("/")[-1].split(".")[0]
 
@@ -1001,11 +1004,15 @@ class FI_report_classifier(object):
 
                     
                 self._FI_dictionary[index]['Result']=result
+
                 faulty_score_per_img = [tup[1] for tup in list(result.values())]
                 self._faul_iou = sum(faulty_score_per_img)
 
             golden_score_per_img = [tup[1] for tup in golden_iou_scores]
             self._gold_iou = sum(golden_score_per_img)
+
+
+
 
         file_name=faulty_file_report.split('/')[-1].split('.')[0]
         csv_report=f"{file_name}.csv"

@@ -11,42 +11,42 @@ from copy import deepcopy
 def random_value(min_val: int = -1, max_val: int = 1):
     return random.uniform(min_val, max_val)
 
-def relative_faulty_iou(gt_labels: torch.Tensor, _gt_bbs: torch.Tensor, pred_labels: torch.Tensor, pred_bb: torch.Tensor, 
-                        pred_scores: torch.Tensor, golden_dict: Dict['str', torch.Tensor]):
+# def relative_faulty_iou(gt_labels: torch.Tensor, _gt_bbs: torch.Tensor, pred_labels: torch.Tensor, pred_bb: torch.Tensor, 
+#                         pred_scores: torch.Tensor, golden_dict: Dict['str', torch.Tensor]):
     
-    faulty_dict, gt_dict = setup_dicts(pred_labels=pred_labels, pred_scores=pred_scores, pred_bb=pred_bb, gt_labels=gt_labels, _gt_bbs=_gt_bbs)
+#     faulty_dict, gt_dict = setup_dicts(pred_labels=pred_labels, pred_scores=pred_scores, pred_bb=pred_bb, gt_labels=gt_labels, _gt_bbs=_gt_bbs)
 
-    score_per_label = list()
-    for G_label, bbs in golden_dict.items():
-        for t_label in list(gt_dict.keys()):
-            if G_label == t_label:
-                for F_label in list(faulty_dict.keys()):
-                    if F_label ==t_label:
-                        fault_bbs = np.array(faulty_dict[F_label])
-                        for bb in bbs:
-                            disatnces1 = np.linalg.norm(bb[0:2] - fault_bbs[:,0:2], axis=1)
-                            disatnces2 = np.linalg.norm(bb[2:4] - fault_bbs[:,2:4], axis=1)
+#     score_per_label = list()
+#     for G_label, bbs in golden_dict.items():
+#         for t_label in list(gt_dict.keys()):
+#             if G_label == t_label:
+#                 for F_label in list(faulty_dict.keys()):
+#                     if F_label ==t_label:
+#                         fault_bbs = np.array(faulty_dict[F_label])
+#                         for bb in bbs:
+#                             disatnces1 = np.linalg.norm(bb[0:2] - fault_bbs[:,0:2], axis=1)
+#                             disatnces2 = np.linalg.norm(bb[2:4] - fault_bbs[:,2:4], axis=1)
 
-                            buffer = disatnces1 + disatnces2
+#                             buffer = disatnces1 + disatnces2
 
-                            # take the lowest one
-                            candidate_idx = np.argmin(buffer)
+#                             # take the lowest one
+#                             candidate_idx = np.argmin(buffer)
 
-                            # take the array correspinding to the lowest distance from the reference gt_bb 
-                            candidate_bb = fault_bbs[candidate_idx]
+#                             # take the array correspinding to the lowest distance from the reference gt_bb 
+#                             candidate_bb = fault_bbs[candidate_idx]
 
-                            # compute the score between the nearest bb and the gt_bb
-                            score = compute_iou(bb, candidate_bb)
+#                             # compute the score between the nearest bb and the gt_bb
+#                             score = compute_iou(bb, candidate_bb)
 
-                            # save result
-                            score_per_label.append((F_label, score))
+#                             # save result
+#                             score_per_label.append((F_label, score))
 
-                            pred_bbs = np.delete(pred_bbs, np.argmin(buffer), axis = 0)
+#                             pred_bbs = np.delete(pred_bbs, np.argmin(buffer), axis = 0)
 
-                            # pred_bbs[candidate_idx] = np.array([np.nan, np.nan, np.nan, np.nan])
-                            if len(pred_bbs) == 0:
-                                break
-    return score_per_label
+#                             # pred_bbs[candidate_idx] = np.array([np.nan, np.nan, np.nan, np.nan])
+#                             if len(pred_bbs) == 0:
+#                                 break
+#     return score_per_label
 
                             
 
