@@ -702,6 +702,8 @@ class FI_report_classifier(object):
         self._num_images=0
         self._gold_iou=torch.tensor([0.0])
         self._faul_iou=torch.tensor([0.0])
+        self.f_map = torch.tensor([0.0])
+        self.g_map = torch.tensor([0.0])
         
         self._report_dictionary={}
         self._FI_results_dictionary={}
@@ -761,7 +763,7 @@ class FI_report_classifier(object):
         if not os.path.exists(os.path.join(self.log_path,self.fault_report_filename)):
             self._fsim_report=pd.DataFrame(columns=['gold_iou@1','gold_iou@k',
                                         'img_Crit','img_SDC','img_Masked',
-                                        'fault_iou@1','Class'])  
+                                        'fault_iou@1','Class', 'gold_map', 'fault_map'])  
             self._fsim_report.to_csv(os.path.join(self.log_path,self.fault_report_filename),sep=',')
         else:
             self._fsim_report = pd.read_csv(os.path.join(self.log_path,self.fault_report_filename),index_col=[0])           
@@ -833,6 +835,8 @@ class FI_report_classifier(object):
         self._fault_dictionary['fault_iou@1'] = self.Fiou.item()
         self._fault_dictionary['Class'] = self.Top1_faulty_code
         self._fault_dictionary['Class_Topk'] = self.Topk_faulty_code
+        self._fault_dictionary['gold_map'] = self.g_map
+        self._fault_dictionary['fault_map'] = self.f_map
     
 
 
@@ -894,118 +898,125 @@ class FI_report_classifier(object):
             G_gt_bb=torch.tensor(self.Golden['gt_boxes'],requires_grad=False)
             G_gt_labels=torch.tensor(self.Golden['gt_labels'],requires_grad=False)
             # this function must be improved
-            golden_iou_scores, golden_pred_dict = relative_iou(G_gt_labels, G_gt_bb, G_pred_labels, G_pred_bb, G_pred_scores)
-            print(golden_iou_scores)
+            # print(f'G_gt_labels: {G_gt_labels}')
+            if G_gt_labels.shape[0] != 0:
+                golden_iou_scores, golden_pred_dict = relative_iou(G_gt_labels, G_gt_bb, G_pred_labels, G_pred_bb, G_pred_scores)
+                # print(golden_iou_scores)
 
-            metric = MeanAveragePrecision(box_format="xyxy", iou_type="bbox")
-            
-            compute_mAP(metric_setting=metric, gt_labels=G_gt_labels, gt_bb= G_gt_bb, pred_labels=G_pred_labels, pred_bb=G_pred_bb, pred_scores=G_pred_scores)
-            
-            if index in self._FI_dictionary:
+                metric = MeanAveragePrecision(box_format="xyxy", iou_type="bbox")
+                
+                G_map = compute_mAP(metric_setting=metric, gt_labels=G_gt_labels, gt_bb= G_gt_bb, pred_labels=G_pred_labels, pred_bb=G_pred_bb, pred_scores=G_pred_scores)
+                
+                if index in self._FI_dictionary:
 
-                self.Faulty = self._FI_dictionary[index]
+                    self.Faulty = self._FI_dictionary[index]
 
-                F_pred_bb=torch.tensor(self.Faulty['pred_boxes'],requires_grad=False)
-                F_pred_labels=torch.tensor(self.Faulty['pred_labels'],requires_grad=False)
-                F_pred_scores=torch.tensor(self.Faulty['scores'], requires_grad=False)
-                F_gt_bb=torch.tensor(self.Faulty['gt_boxes'],requires_grad=False)
-                F_gt_labels=torch.tensor(self.Faulty['gt_labels'],requires_grad=False)
-
-
-                # this function must be improved
-                # relative_faulty_iou(F_gt_labels, F_gt_bb, F_pred_labels, F_pred_bb, F_pred_scores, golden_pred_dict)
-                faulty_dict, gt_dict = setup_dicts(pred_labels=F_pred_labels, pred_scores=F_pred_scores, pred_bb=F_pred_bb, gt_labels=F_gt_labels, _gt_bbs=F_gt_bb)
-                print(f'fault_dict: {faulty_dict}')
-                print(f'gt_dict: {gt_dict}')
+                    F_pred_bb=torch.tensor(self.Faulty['pred_boxes'],requires_grad=False)
+                    F_pred_labels=torch.tensor(self.Faulty['pred_labels'],requires_grad=False)
+                    F_pred_scores=torch.tensor(self.Faulty['scores'], requires_grad=False)
+                    F_gt_bb=torch.tensor(self.Faulty['gt_boxes'],requires_grad=False)
+                    F_gt_labels=torch.tensor(self.Faulty['gt_labels'],requires_grad=False)
 
 
-                # score_per_label = list()
-                result = defaultdict(lambda:[])
+                    # this function must be improved
+                    # relative_faulty_iou(F_gt_labels, F_gt_bb, F_pred_labels, F_pred_bb, F_pred_scores, golden_pred_dict)
+                    faulty_dict, gt_dict = setup_dicts(pred_labels=F_pred_labels, pred_scores=F_pred_scores, pred_bb=F_pred_bb, gt_labels=F_gt_labels, _gt_bbs=F_gt_bb)
+                    # print(f'fault_dict: {faulty_dict}')
+                    # print(f'gt_dict: {gt_dict}')
 
-                for G_idx, (G_label, bbs) in enumerate(golden_pred_dict.items()):
 
-                    for t_label in list(gt_dict.keys()):
+                    # score_per_label = list()
+                    result = defaultdict(lambda:[])
 
-                        if G_label == t_label:
+                    for G_idx, (G_label, bbs) in enumerate(golden_pred_dict.items()):
 
-                            for F_label in list(faulty_dict.keys()):
+                        for t_label in list(gt_dict.keys()):
 
-                                if F_label ==t_label:
-                                    
-                                    fault_bbs = np.array(faulty_dict[F_label])
-                                    for bb in bbs:
-                                        disatnces1 = np.linalg.norm(bb[0:2] - fault_bbs[:,0:2], axis=1)
-                                        disatnces2 = np.linalg.norm(bb[2:4] - fault_bbs[:,2:4], axis=1)
+                            if G_label == t_label:
 
-                                        buffer = disatnces1 + disatnces2
+                                for F_label in list(faulty_dict.keys()):
 
-                                        # take the lowest one
-                                        candidate_idx = np.argmin(buffer)
+                                    if F_label ==t_label:
+                                        
+                                        fault_bbs = np.array(faulty_dict[F_label])
+                                        for bb in bbs:
+                                            disatnces1 = np.linalg.norm(bb[0:2] - fault_bbs[:,0:2], axis=1)
+                                            disatnces2 = np.linalg.norm(bb[2:4] - fault_bbs[:,2:4], axis=1)
 
-                                        # take the array correspinding to the lowest distance from the reference gt_bb 
-                                        candidate_bb = fault_bbs[candidate_idx]
+                                            buffer = disatnces1 + disatnces2
 
-                                        # compute the score between the nearest bb and the gt_bb
-                                        score = compute_iou(bb, candidate_bb)
+                                            # take the lowest one
+                                            candidate_idx = np.argmin(buffer)
 
-                                        # save result
-                                        # score_per_label.append((F_label, score))
+                                            # take the array correspinding to the lowest distance from the reference gt_bb 
+                                            candidate_bb = fault_bbs[candidate_idx]
 
-                                        pred_bbs = np.delete(pred_bbs, np.argmin(buffer), axis = 0)
+                                            # compute the score between the nearest bb and the gt_bb
+                                            score = compute_iou(bb, candidate_bb)
 
-                                        if score == 1:
-                                            coverage = 'masked'
-                                            result[t_label].append((coverage, score))
-                                            self.Masked += 1
+                                            # save result
+                                            # score_per_label.append((F_label, score))
 
-                                        elif score < 1 and score > 0.6:
-                                            coverage = 'SDC'
-                                            result[t_label].append((coverage, score))
-                                            self.SDC += 1
-                                        else:
-                                            coverage = 'critical'
-                                            result[t_label].append((coverage, score))
-                                            self.Critical += 1
+                                            fault_bbs = np.delete(fault_bbs, np.argmin(buffer), axis = 0)
 
-                                        # pred_bbs[candidate_idx] = np.array([np.nan, np.nan, np.nan, np.nan])
-                                        if len(pred_bbs) == 0:
-                                            break
+                                            if score == 1:
+                                                coverage = 'masked'
+                                                result[t_label].append((coverage, score))
+                                                self.Masked += 1
+
+                                            elif score < 1 and score > 0.6:
+                                                coverage = 'SDC'
+                                                result[t_label].append((coverage, score))
+                                                self.SDC += 1
+                                            else:
+                                                coverage = 'critical'
+                                                result[t_label].append((coverage, score))
+                                                self.Critical += 1
+
+                                            # pred_bbs[candidate_idx] = np.array([np.nan, np.nan, np.nan, np.nan])
+                                            if len(fault_bbs) == 0:
+                                                break
+
+                                            FaultID=faulty_file_report.split("/")[-1].split(".")[0]
+
+                                            df = pd.DataFrame({'FaultID':FaultID,
+                                                                'imID': index,                                    
+                                                                'G_bb_idx':G_idx,
+                                                                'F_bb_idx':candidate_idx,
+                                                                'G_lab':G_label,                                      
+                                                                'F_lab':F_label,
+                                                                'G_Target':t_label},index=[0])  
+                                            self.Full_report = pd.concat([self.Full_report,df],ignore_index=True)
+                                    else:
+                                        coverage = 'critical'
+                                        result[t_label].append((coverage, None))
+                                        self.Critical += 1
 
                                         FaultID=faulty_file_report.split("/")[-1].split(".")[0]
 
                                         df = pd.DataFrame({'FaultID':FaultID,
                                                             'imID': index,                                    
-                                                            'G_bb_idx':G_idx.item(),
-                                                            'F_bb_idx':candidate_idx,
+                                                            'G_bb_idx':G_idx,
+                                                            'F_bb_idx':None,
                                                             'G_lab':G_label,                                      
                                                             'F_lab':F_label,
-                                                            'G_Target':t_label},index=[0])  
+                                                            'G_Target':t_label},index=[0])
+                                        
                                         self.Full_report = pd.concat([self.Full_report,df],ignore_index=True)
-                                else:
-                                    coverage = 'critical'
-                                    result[t_label].append((coverage, None))
-                                    self.Critical += 1
 
-                                    FaultID=faulty_file_report.split("/")[-1].split(".")[0]
+                        
+                    self._FI_dictionary[index]['Result']=result
+                    # print(f'result.values(): {result.values()}')
+                    faulty_iou_per_img = [tup[1][1] for tup in list(result.values()) if tup[1][1] != None]
+                    self._faul_iou = sum(faulty_iou_per_img)
 
-                                    df = pd.DataFrame({'FaultID':FaultID,
-                                                        'imID': index,                                    
-                                                        'G_bb_idx':G_idx.item(),
-                                                        'F_bb_idx':None,
-                                                        'G_lab':G_label,                                      
-                                                        'F_lab':F_label,
-                                                        'G_Target':t_label},index=[0])
-                                    
-                                    self.Full_report = pd.concat([self.Full_report,df],ignore_index=True)
-
-                    
-                self._FI_dictionary[index]['Result']=result
-                faulty_score_per_img = [tup[1] for tup in list(result.values())]
-                self._faul_iou = sum(faulty_score_per_img)
-
+                    metric = MeanAveragePrecision(box_format="xyxy", iou_type="bbox")
+                
+                    F_map = compute_mAP(metric_setting=metric, gt_labels=F_gt_labels, gt_bb= F_gt_bb, pred_labels=F_pred_labels, pred_bb=F_pred_bb, pred_scores=F_pred_scores)
+                    self.f_map = F_map
             golden_score_per_img = [tup[1] for tup in golden_iou_scores]
             self._gold_iou = sum(golden_score_per_img)
-
+            self.g_map = G_map
         file_name=faulty_file_report.split('/')[-1].split('.')[0]
         csv_report=f"{file_name}.csv"
         if(len(self.Full_report)>0):
