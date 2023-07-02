@@ -893,7 +893,6 @@ class FI_report_classifier(object):
             G_pred_scores=torch.tensor(self.Golden['scores'], requires_grad=False)
             G_gt_bb=torch.tensor(self.Golden['gt_boxes'],requires_grad=False)
             G_gt_labels=torch.tensor(self.Golden['gt_labels'],requires_grad=False)
-            print('ciao2')
             # this function must be improved
             golden_iou_scores, golden_pred_dict = relative_iou(G_gt_labels, G_gt_bb, G_pred_labels, G_pred_bb, G_pred_scores)
             print(golden_iou_scores)
@@ -960,7 +959,7 @@ class FI_report_classifier(object):
                                             self.Masked += 1
 
                                         elif score < 1 and score > 0.6:
-                                            coverage = 'safe'
+                                            coverage = 'SDC'
                                             result[t_label].append((coverage, score))
                                             self.SDC += 1
                                         else:

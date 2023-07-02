@@ -192,12 +192,22 @@ def compute_mAP(metric_setting:MeanAveragePrecision,
     return score
 
 def setup_dict_mAP(labels:torch.Tensor, bb:torch.Tensor, scores:torch.Tensor=None):
+    # qui vogliamo un dict nella lista per ogni label
+    res = []
     tmp = dict()
+    labels = torch.squeeze(labels)
     if scores is not None:
-        tmp['boxes']=bb
-        tmp['scores']=scores
-        tmp['labels']=labels
+        for idx, label in enumerate(labels):
+            if scores[idx] > 0.8:
+                tmp['boxe']=bb[idx]
+                tmp['score']=scores[idx]
+                tmp['label']=label
+                res.append(tmp)
+        print(f'len(res): {len(res)}')
     else: 
-        tmp['boxes']=bb
-        tmp['labels']=labels
-    return tmp
+        for idx, label in enumerate(labels):
+            tmp['boxe']=bb[idx]
+            tmp['label']=label
+            res.append(tmp)
+        print(f'len(res): {len(res)}')
+    return res
