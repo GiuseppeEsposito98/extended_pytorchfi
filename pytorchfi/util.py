@@ -46,7 +46,8 @@ def relative_iou(gt_labels: torch.Tensor, _gt_bbs: torch.Tensor, pred_labels: to
 
                 # take the array correspinding to the lowest distance from the reference gt_bb 
                 candidate_bb = pred_bbs[candidate_idx]
-
+                print(f'gt_bb: {gt_bb}')
+                print(f'candidate_bb: {candidate_bb}')
                 # compute the score between the nearest bb and the gt_bb
                 score = compute_iou(gt_bb, candidate_bb)
 
@@ -61,7 +62,6 @@ def relative_iou(gt_labels: torch.Tensor, _gt_bbs: torch.Tensor, pred_labels: to
                 # delete the already extracted array
                 # questo va cambiato, si può pensare ad una lista di indici bannati (da cui non si può scegliere)
                 pred_bbs = np.delete(pred_bbs, np.argmin(buffer), axis = 0)
-
                 # pred_bbs[candidate_idx] = np.array([np.nan, np.nan, np.nan, np.nan])
                 if len(pred_bbs) == 0:
                     break
@@ -118,8 +118,10 @@ def compute_iou(gt_bb: List[Union[float, float, float, float]],
 
     union = (area_gt + area_pred - intersection)
     # print(f'union: {union}')
-
-    score = (intersection / union)
+    if union != 0:
+        score = (intersection / union)
+    else: 
+        score = 0.0
     return score
 
 
@@ -139,35 +141,45 @@ def compute_mAP(metric_setting:MeanAveragePrecision,
     
     preds = [setup_pred_dict_mAP(pred_labels, pred_bb, pred_scores)]
     target = [setup_target_dict_mAP(gt_labels, gt_bb)]
-    print(f'preds: {preds}')
-    print(f'target: {target}')
+    # print(f'preds: {preds}')
+    # print(f'target: {target}')
     metric_setting.update(preds=preds, target=target)
     score = metric_setting.compute()
     return score
 
-def setup_pred_dict_mAP(labels:torch.Tensor, bb:torch.Tensor, scores:torch.Tensor=None):
+def setup_pred_dict_mAP(labels:torch.Tensor, bb:torch.Tensor, scores:torch.Tensor):
     # qui vogliamo un dict nella lista per ogni label
     tmp = dict()
+    # print(f'pred_label before: {bb}')
+    if len(bb.shape) == 1 and labels.nelement() != 0:
+        bb = torch.reshape(bb, (1,4))
 
     tmp['boxes'] = bb
     tmp['labels'] = labels
     tmp['scores'] = scores
 
+    # print(f'pred_label then: {bb}')
+
     return tmp
 
-def setup_target_dict_mAP(labels:torch.Tensor, bb:torch.Tensor, scores:torch.Tensor=None):
+def setup_target_dict_mAP(labels:torch.Tensor, bb:torch.Tensor):
     # qui vogliamo un dict nella lista per ogni label
     tmp = dict()
     
-    print(f'before: {labels}')
+    # print(f'before_tar: {labels}')
     if len(labels[0]) > 1:
         labels = torch.squeeze(labels)
         bb = torch.squeeze(bb)
+    elif len(labels[0]) == 1 and labels.nelement() != 0: 
+        labels = torch.reshape(labels, (1,))
+        bb = torch.reshape(bb, (1,4))
+
+    # bb = torch.squeeze(bb)
     # else: 
     #     print('ciao')
     #     bb = torch.unsqueeze(bb, dim=0)
     # bb = torch.squeeze(bb)
-    print(f'then: {labels}')
+    # print(f'then_tar: {labels}')
 
     tmp['boxes'] = bb
     tmp['labels'] = labels
