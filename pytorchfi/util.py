@@ -46,8 +46,8 @@ def relative_iou(gt_labels: torch.Tensor, _gt_bbs: torch.Tensor, pred_labels: to
 
                 # take the array correspinding to the lowest distance from the reference gt_bb 
                 candidate_bb = pred_bbs[candidate_idx]
-                print(f'gt_bb: {gt_bb}')
-                print(f'candidate_bb: {candidate_bb}')
+                # print(f'gt_bb: {gt_bb}')
+                # print(f'candidate_bb: {candidate_bb}')
                 # compute the score between the nearest bb and the gt_bb
                 score = compute_iou(gt_bb, candidate_bb)
 
