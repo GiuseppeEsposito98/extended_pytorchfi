@@ -702,8 +702,7 @@ class FI_report_classifier(object):
         self._kH=0
         self._kW=0
         self._layer=0    
-        self._num_golden_images=0
-        self._num_faulty_images=0
+        self._num_imgs = 0
         self._gold_iou=torch.tensor([0.0])
         self._faul_iou=torch.tensor([0.0])
         
@@ -721,8 +720,8 @@ class FI_report_classifier(object):
         self.g_mar_small = torch.tensor([0.0])
         self.g_mar_medium = torch.tensor([0.0])
         self.g_mar_large = torch.tensor([0.0])
-        self.g_map_per_class = torch.tensor([0.0])
-        self.g_mar_100_per_class = torch.tensor([0.0])
+        # self.g_map_per_class = torch.tensor([0.0])
+        # self.g_mar_100_per_class = torch.tensor([0.0])
 
         # faulty map
         self.f_map = torch.tensor([0.0])
@@ -736,8 +735,8 @@ class FI_report_classifier(object):
         self.f_mar_100 = torch.tensor([0.0])
         self.f_mar_small = torch.tensor([0.0])
         self.f_mar_medium = torch.tensor([0.0])
-        self.f_mar_large = torch.tensor([0.0])
-        self.f_map_per_class = torch.tensor([0.0])
+        # self.f_mar_large = torch.tensor([0.0])
+        # self.f_map_per_class = torch.tensor([0.0])
         self.f_mar_100_per_class = torch.tensor([0.0])
         
         self._report_dictionary={}
@@ -757,8 +756,8 @@ class FI_report_classifier(object):
 
         self.Giou=torch.tensor([0.0])
         self.Fiou=torch.tensor([0.0])
-        self.fiou = torch.tensor(0.0)
-        self.giou = torch.tensor(0.0)
+        self.fiou = torch.tensor([0.0])
+        self.giou = torch.tensor([0.0])
         self.Full_report=pd.DataFrame()
 
         self.ioum_SDC=0
@@ -802,10 +801,10 @@ class FI_report_classifier(object):
                                         'boxes_Crit','boxes_SDC','boxes_Masked',
                                         'fault_iou@1','Class', 'gold_map','g_map_50','g_map_75','g_map_small',
                                         'g_map_medium','g_map_large','g_mar_1','g_mar_10','g_mar_100','g_mar_small',
-                                        'g_mar_medium','g_mar_large','g_map_per_class','g_mar_100_per_class',
+                                        'g_mar_medium','g_mar_large',
                                         'fault_map','f_map_50','f_map_75','f_map_small',
                                         'f_map_medium','f_map_large','f_mar_1','f_mar_10','f_mar_100','f_mar_small',
-                                        'f_mar_medium','f_mar_large','f_map_per_class','f_mar_100_per_class'])  
+                                        'f_mar_medium','f_mar_large'])  
             self._fsim_report.to_csv(os.path.join(self.log_path,self.fault_report_filename),sep=',')
         else:
             self._fsim_report = pd.read_csv(os.path.join(self.log_path,self.fault_report_filename),index_col=[0])           
@@ -838,8 +837,7 @@ class FI_report_classifier(object):
         self.SDC=0
         self.Masked=0
         self.Critical=0
-        self._num_golden_images=0     
-        self._num_faulty_images=0
+        self._num_imgs = 0
 
         self.Giou = torch.tensor([0.0])
         self.giou = torch.tensor([0.0])
@@ -855,8 +853,8 @@ class FI_report_classifier(object):
         self.g_mar_small = torch.tensor([0.0])
         self.g_mar_medium = torch.tensor([0.0])
         self.g_mar_large = torch.tensor([0.0])
-        self.g_map_per_class = torch.tensor([0.0])
-        self.g_mar_100_per_class = torch.tensor([0.0])
+        # self.g_map_per_class = torch.tensor([0.0])
+        # self.g_mar_100_per_class = torch.tensor([0.0])
 
         self.Fiou = torch.tensor([0.0])
         self.fiou = torch.tensor([0.0])
@@ -872,8 +870,8 @@ class FI_report_classifier(object):
         self.f_mar_small = torch.tensor([0.0])
         self.f_mar_medium = torch.tensor([0.0])
         self.f_mar_large = torch.tensor([0.0])
-        self.f_map_per_class = torch.tensor([0.0])
-        self.f_mar_100_per_class = torch.tensor([0.0])
+        # self.f_map_per_class = torch.tensor([0.0])
+        # self.f_mar_100_per_class = torch.tensor([0.0])
 
     def _update_chpt_info(self):    
         self.Top1_faulty_code=0 # 0: Masked; 1: SDC; 2; Critical; 3=crash
@@ -897,9 +895,10 @@ class FI_report_classifier(object):
             # self.Masked+=1
             self.check_point["top1"]["fault"]["Masked"]+=1
             self.Top1_faulty_code=0
-
-        self.Giou = (self.giou / self._num_golden_images) * 100
-        self.Fiou = (self.fiou / self._num_faulty_images) * 100
+        
+        print(f'self._num_imgs: {self._num_imgs}')
+        self.Giou = (self.giou / self._num_imgs) * 100
+        self.Fiou = (self.fiou / self._num_imgs) * 100
     
         # self.Giou=self._gold_iou*100/self._num_images
         # self.Fiou=self._faul_iou*100/self._num_images
@@ -929,8 +928,8 @@ class FI_report_classifier(object):
         self._fault_dictionary['g_mar_small'] = self.g_mar_small.item()
         self._fault_dictionary['g_mar_medium'] = self.g_mar_medium.item()
         self._fault_dictionary['g_mar_large'] = self.g_mar_large.item()
-        self._fault_dictionary['g_map_per_class'] = self.g_map_per_class.item()
-        self._fault_dictionary['g_mar_100_per_class'] = self.g_mar_100_per_class.item()
+        # self._fault_dictionary['g_map_per_class'] = self.g_map_per_class.item()
+        # self._fault_dictionary['g_mar_100_per_class'] = self.g_mar_100_per_class.item()
 
         # fault map
         self._fault_dictionary['fault_map'] = self.f_map.item()
@@ -945,8 +944,8 @@ class FI_report_classifier(object):
         self._fault_dictionary['f_mar_small'] = self.f_mar_small.item()
         self._fault_dictionary['f_mar_medium'] = self.f_mar_medium.item()
         self._fault_dictionary['f_mar_large'] = self.f_mar_large.item()
-        self._fault_dictionary['f_map_per_class'] = self.f_map_per_class.item()
-        self._fault_dictionary['f_mar_100_per_class'] = self.f_mar_100_per_class.item()
+        # self._fault_dictionary['f_map_per_class'] = self.f_map_per_class.item()
+        # self._fault_dictionary['f_mar_100_per_class'] = self.f_mar_100_per_class.item()
 
         # print(f'self._fault_dictionary: {self._fault_dictionary}')
 
@@ -1011,40 +1010,17 @@ class FI_report_classifier(object):
             G_gt_bb=torch.tensor(self.Golden['gt_boxes'],requires_grad=False)
             G_gt_labels=torch.tensor(self.Golden['gt_labels'],requires_grad=False)
 
-            
+            last_f_buffer = 0.0
+            last_g_buffer = 0.0
             # print(f'G_gt_labels: {G_gt_labels}')
             
             if G_gt_labels.nelement() != 0:
                 # print(f'G_gt_labels: {G_gt_labels}')
                 golden_pred_dict, gt_dict = setup_dicts(pred_labels=G_pred_labels, pred_scores=G_pred_scores, pred_bb=G_pred_bb, gt_labels=G_gt_labels, _gt_bbs=G_gt_bb)
-                # golden_iou_scores, golden_pred_dict = relative_iou(G_gt_labels, G_gt_bb, G_pred_labels, G_pred_bb, G_pred_scores)
-                # print(golden_iou_scores)
-                # golden_score_per_img = [tup[1] for tup in golden_iou_scores]
-                # if len(golden_score_per_img) > 0:
-                #     self.Giou = sum(golden_score_per_img)/len(golden_score_per_img)
-                # else: 
-                #     self.Giou = 0.0
 
-                # metric = MeanAveragePrecision(box_format="xyxy", iou_type="bbox")
-                
-                # G_map = compute_mAP(metric_setting=metric, gt_labels=G_gt_labels, gt_bb= G_gt_bb, pred_labels=G_pred_labels, pred_bb=G_pred_bb, pred_scores=G_pred_scores)
-                # # print(f'G_map: {G_map}')
-                # self.g_map = G_map['map']
-                # self.g_map_50 = G_map['map_50']
-                # self.g_map_75 = G_map['map_75']
-                # self.g_map_small = G_map['map_small']
-                # self.g_map_medium = G_map['map_medium']
-                # self.g_map_large = G_map['map_large']
-                # self.g_mar_1 = G_map['mar_1']
-                # self.g_mar_10 = G_map['mar_10']
-                # self.g_mar_100 = G_map['mar_100']
-                # self.g_mar_small = G_map['mar_small']
-                # self.g_mar_medium = G_map['mar_medium']
-                # self.g_mar_large = G_map['mar_large']
-                # self.g_map_per_class = G_map['map_per_class']
-                # self.g_mar_100_per_class = G_map['mar_100_per_class']
                 
                 if index in self._FI_dictionary:
+                    self._num_imgs += 1
                     # print(f'index: {index}')
                     self.Faulty = self._FI_dictionary[index]
 
@@ -1065,10 +1041,10 @@ class FI_report_classifier(object):
                     golden_score_per_label = list()
 
                     # for each golden label
+                    # print(f'golden_pred_dict.keys(): {golden_pred_dict.keys()}')
                     for G_idx, (G_label, bbs) in enumerate(golden_pred_dict.items()):
                         # for each target label
                         result = defaultdict(lambda:[])
-                        self._num_golden_images += 1
                         t_position = np.where(G_label == gt_labels_array)
                         t_labels = gt_labels_array[t_position]
                         if len(t_labels) > 0:
@@ -1078,11 +1054,11 @@ class FI_report_classifier(object):
                             # for each faulty label
                             buffer_faulty_per_label = 0
                             for F_label in list(faulty_dict.keys()):
-                                self._num_faulty_images += 1
+                                # self._num_faulty_images += 1
                                 # if faulty label is the right
                                 if F_label == t_label:
                                     # print(F_label)
-                                    print(f'F_label == t_label: {F_label == t_label}')
+                                    # print(f'F_label == t_label: {F_label == t_label}')
                                     # compute the iou with respect to the golden prediction
                                     buffer_faulty_score = 0
                                     fault_bbs = np.array(faulty_dict[F_label])
@@ -1100,7 +1076,7 @@ class FI_report_classifier(object):
 
                                         # compute the score between the nearest bb and the gt_bb
                                         f_score = compute_iou(bb, f_candidate_bb)
-                                        print(f'f_score: {f_score}')
+                                        # print(f'f_score: {f_score}')
                                         # save result
                                         # score_per_label.append((F_label, score))
                                         buffer_faulty_score += f_score
@@ -1145,11 +1121,10 @@ class FI_report_classifier(object):
                                                     'G_Target':t_label},index=[0])  
                                 self.Full_report = pd.concat([self.Full_report,df],ignore_index=True)
                                 
-                            print(f'self.fiou: {self.fiou}')
                             if len(list(faulty_dict.keys())) > 0:
-                                self.fiou += buffer_faulty_per_label # / len(list(faulty_dict.keys()))
+                                last_f_buffer += buffer_faulty_per_label / len(list(faulty_dict.keys()))
                             else: 
-                                self.fiou += 0.0
+                                last_f_buffer += 0.0
                                     
 
                             buffer_golden_score = 0
@@ -1167,7 +1142,7 @@ class FI_report_classifier(object):
                                 g_candidate_bb = golden_pred_bbs[g_candidate_idx]
 
                                 g_score = compute_iou(gt_bb, g_candidate_bb)
-                                print(f'g_score: {g_score}')
+                                # print(f'g_score: {g_score}')
                                 golden_score_per_label.append((G_label, g_score))
 
                                 golden_pred_bbs = np.delete(golden_pred_bbs, g_candidate_idx, axis = 0)
@@ -1178,15 +1153,19 @@ class FI_report_classifier(object):
                                     break
 
                         
-                            self.giou += buffer_golden_score # /len(gt_bbs)
+                            last_g_buffer += buffer_golden_score /len(gt_bbs)
                             # self.giou += buffer_per_label / len(list(gt_dict.keys()))
                         else:
-                            self.giou += 0.0
+                            last_g_buffer += 0.0
 
                         gt_labels_array = np.delete(gt_labels_array, t_position)
 
                         # print(f'self.giou: {self.giou}')
                         # print(f'self.fiou: {self.fiou}')
+                    if len(list(faulty_dict.keys())) > 0:
+                        self.fiou += last_f_buffer / len(list(faulty_dict.keys()))
+                    else: 
+                        self.fiou += 0.0
 
                     metric = MeanAveragePrecision(box_format="xyxy", iou_type="bbox")
             
@@ -1204,9 +1183,15 @@ class FI_report_classifier(object):
                     self.f_mar_small = F_map['mar_small']
                     self.f_mar_medium = F_map['mar_medium']
                     self.f_mar_large = F_map['mar_large']
-                    self.f_map_per_class = F_map['map_per_class']
-                    self.f_mar_100_per_class = F_map['mar_100_per_class']
+                    # self.f_map_per_class = F_map['map_per_class']
+                    # self.f_mar_100_per_class = F_map['mar_100_per_class']
                 
+                if len(list(golden_pred_dict.keys())) > 0:
+                    self.giou += last_g_buffer / len(list(golden_pred_dict.keys()))
+                else: 
+                    self.giou += 0.0
+                
+
                 metric = MeanAveragePrecision(box_format="xyxy", iou_type="bbox")
     
                 G_map = compute_mAP(metric_setting=metric, gt_labels=G_gt_labels, gt_bb= G_gt_bb, pred_labels=G_pred_labels, pred_bb=G_pred_bb, pred_scores=G_pred_scores)
@@ -1223,9 +1208,8 @@ class FI_report_classifier(object):
                 self.g_mar_small = G_map['mar_small']
                 self.g_mar_medium = G_map['mar_medium']
                 self.g_mar_large = G_map['mar_large']
-                self.g_map_per_class = G_map['map_per_class']
-                self.g_mar_100_per_class = G_map['mar_100_per_class']
-
+                # self.g_map_per_class = G_map['map_per_class']
+                # self.g_mar_100_per_class = G_map['mar_100_per_class']
 
         file_name=faulty_file_report.split('/')[-1].split('.')[0]
         csv_report=f"{file_name}.csv"
