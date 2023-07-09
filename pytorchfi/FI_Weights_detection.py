@@ -1061,7 +1061,9 @@ class FI_report_classifier(object):
                                     # print(F_label)
                                     # compute the iou with respect to the golden prediction
                                     buffer_faulty_score = 0
-                                    fault_bbs = np.array(faulty_dict[F_label])
+                                    buffer_conf = 0
+                                    fault_bbs = np.array(faulty_dict[F_label])[0]
+                                    scores = np.array(faulty_dict[F_label])[1]
                                     for bb in bbs:
                                         faulty_disatnces1 = np.linalg.norm(bb[0:2] - fault_bbs[:,0:2], axis=1, ord=2)
                                         faulty_disatnces2 = np.linalg.norm(bb[2:4] - fault_bbs[:,2:4], axis=1, ord=2)
@@ -1073,7 +1075,7 @@ class FI_report_classifier(object):
 
                                         # take the array correspinding to the lowest distance from the reference gt_bb 
                                         f_candidate_bb = fault_bbs[f_candidate_idx]
-
+                                        buffer_conf += scores[f_candidate_idx]
                                         # compute the score between the nearest bb and the gt_bb
                                         f_score = compute_iou(bb, f_candidate_bb)
                                         # print(f'f_score: {f_score}')
@@ -1084,7 +1086,7 @@ class FI_report_classifier(object):
                                         fault_bbs = np.delete(fault_bbs, f_candidate_idx, axis = 0)
                                         if len(fault_bbs) == 0:
                                             break
-                                
+                                    normalized_conf = buffer_conf/len(bbs)
                                     normalized_faulty = buffer_faulty_score/len(bbs)
                                     # print(f'normalized_faulty: {normalized_faulty}')
                                     if normalized_faulty == 1:
@@ -1109,6 +1111,7 @@ class FI_report_classifier(object):
                                     result[t_label].append((coverage, 0.0))
                                     self.Critical += 1
                                     normalized_faulty = 0.0
+                                    normalized_conf = None
                                 # print(f'normalized_faulty: {normalized_faulty}')
                                 buffer_faulty_per_label += normalized_faulty
 
@@ -1119,7 +1122,8 @@ class FI_report_classifier(object):
                                                     'G_lab':G_label,
                                                     'pred_idx': F_idx,                                      
                                                     'F_lab':F_label,
-                                                    'G_Target':t_label},index=[0])  
+                                                    'G_Target':t_label,
+                                                    'score': normalized_conf,},index=[0])  
                                 self.Full_report = pd.concat([self.Full_report,df],ignore_index=True)
                                 
                             if len(list(faulty_dict.keys())) > 0:
@@ -1129,7 +1133,7 @@ class FI_report_classifier(object):
                                     
 
                             buffer_golden_score = 0
-                            golden_pred_bbs = np.array(golden_pred_dict[G_label])
+                            golden_pred_bbs = np.array(golden_pred_dict[G_label])[0]
                             gt_bbs = gt_dict[t_label]
 
                             for gt_bb in gt_bbs:

@@ -85,11 +85,11 @@ def setup_dicts(pred_labels:torch.Tensor, pred_scores:torch.Tensor, pred_bb:torc
     # print(f'pred_scores: {pred_scores}')
     if not isinstance(pred_labels,int):
         for (idx1, label), score in zip(enumerate(pred_labels.tolist()), pred_scores.tolist()):
-            if score > 0.6:
-                pred_dict[int(label)].append(pred_bb[idx1].numpy())
+            if score > 0.65:
+                pred_dict[int(label)].append((pred_bb[idx1].numpy(), score))
     else: 
-        if pred_scores > 0.6:
-            pred_dict[int(pred_labels)].append(torch.squeeze(pred_bb).numpy())
+        if pred_scores > 0.65:
+            pred_dict[int(pred_labels)].append((torch.squeeze(pred_bb).numpy(), float(pred_scores)))
             
     return pred_dict, gt_dict
 
