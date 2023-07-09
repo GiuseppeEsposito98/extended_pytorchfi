@@ -125,8 +125,6 @@ def compute_iou(gt_bb: List[Union[float, float, float, float]],
     return score
 
 
-def extract_coordinates(bb):
-    return math.floor(bb[0]), math.floor(bb[1]), math.ceil(bb[2]), math.ceil(bb[2])
 
 
 def extract_coordinates(bb):
