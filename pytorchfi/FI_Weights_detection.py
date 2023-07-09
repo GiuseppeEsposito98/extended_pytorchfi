@@ -1010,8 +1010,8 @@ class FI_report_classifier(object):
             G_gt_bb=torch.tensor(self.Golden['gt_boxes'],requires_grad=False)
             G_gt_labels=torch.tensor(self.Golden['gt_labels'],requires_grad=False)
 
-            last_f_buffer = 0.0
-            last_g_buffer = 0.0
+            f_buffer_per_img = 0.0
+            g_buffer_per_img = 0.0
             # print(f'G_gt_labels: {G_gt_labels}')
             
             if G_gt_labels.nelement() != 0:
@@ -1053,12 +1053,12 @@ class FI_report_classifier(object):
                             # t_label = gt_labels_array[t_label_idx]
                             # for each faulty label
                             buffer_faulty_per_label = 0
-                            for F_label in list(faulty_dict.keys()):
+                            for F_idx, F_label in enumerate(list(faulty_dict.keys())):
                                 # self._num_faulty_images += 1
                                 # if faulty label is the right
+                                print(f'F_label == t_label? {F_label == t_label}')
                                 if F_label == t_label:
                                     # print(F_label)
-                                    # print(f'F_label == t_label: {F_label == t_label}')
                                     # compute the iou with respect to the golden prediction
                                     buffer_faulty_score = 0
                                     fault_bbs = np.array(faulty_dict[F_label])
@@ -1116,15 +1116,16 @@ class FI_report_classifier(object):
 
                                 df = pd.DataFrame({'FaultID':FaultID,
                                                     'imID': index,                                    
-                                                    'G_lab':G_label,                                      
+                                                    'G_lab':G_label,
+                                                    'pred_idx': F_idx,                                      
                                                     'F_lab':F_label,
                                                     'G_Target':t_label},index=[0])  
                                 self.Full_report = pd.concat([self.Full_report,df],ignore_index=True)
                                 
                             if len(list(faulty_dict.keys())) > 0:
-                                last_f_buffer += buffer_faulty_per_label / len(list(faulty_dict.keys()))
+                                f_buffer_per_img += buffer_faulty_per_label / len(list(faulty_dict.keys()))
                             else: 
-                                last_f_buffer += 0.0
+                                f_buffer_per_img += 0.0
                                     
 
                             buffer_golden_score = 0
@@ -1153,17 +1154,17 @@ class FI_report_classifier(object):
                                     break
 
                         
-                            last_g_buffer += buffer_golden_score /len(gt_bbs)
+                            g_buffer_per_img += buffer_golden_score /len(gt_bbs)
                             # self.giou += buffer_per_label / len(list(gt_dict.keys()))
                         else:
-                            last_g_buffer += 0.0
+                            g_buffer_per_img += 0.0
 
                         gt_labels_array = np.delete(gt_labels_array, t_position)
 
                         # print(f'self.giou: {self.giou}')
                         # print(f'self.fiou: {self.fiou}')
                     if len(list(faulty_dict.keys())) > 0:
-                        self.fiou += last_f_buffer / len(list(faulty_dict.keys()))
+                        self.fiou += f_buffer_per_img / len(list(faulty_dict.keys()))
                     else: 
                         self.fiou += 0.0
 
@@ -1187,7 +1188,7 @@ class FI_report_classifier(object):
                     # self.f_mar_100_per_class = F_map['mar_100_per_class']
                 
                 if len(list(golden_pred_dict.keys())) > 0:
-                    self.giou += last_g_buffer / len(list(golden_pred_dict.keys()))
+                    self.giou += g_buffer_per_img / len(list(golden_pred_dict.keys()))
                 else: 
                     self.giou += 0.0
                 
@@ -1197,8 +1198,8 @@ class FI_report_classifier(object):
                 G_map = compute_mAP(metric_setting=metric, gt_labels=G_gt_labels, gt_bb= G_gt_bb, pred_labels=G_pred_labels, pred_bb=G_pred_bb, pred_scores=G_pred_scores)
                 # print(f'G_map: {G_map}')
                 self.g_map = G_map['map']
-                self.g_map_50 = G_map['map_50']
-                self.g_map_75 = G_map['map_75']
+                self.g_map_50 = G_map['map_50'] # 50 is the confidence level of the model
+                self.g_map_75 = G_map['map_75'] # 75 is the confidence level of the model
                 self.g_map_small = G_map['map_small']
                 self.g_map_medium = G_map['map_medium']
                 self.g_map_large = G_map['map_large']
