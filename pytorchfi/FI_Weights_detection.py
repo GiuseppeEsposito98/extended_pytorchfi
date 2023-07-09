@@ -1042,7 +1042,7 @@ class FI_report_classifier(object):
 
                     # for each golden label
                     # print(f'golden_pred_dict.keys(): {golden_pred_dict.keys()}')
-                    for G_idx, (G_label, bbs) in enumerate(golden_pred_dict.items()):
+                    for G_idx, (G_label, bbs_scores) in enumerate(golden_pred_dict.items()):
                         # for each target label
                         result = defaultdict(lambda:[])
                         t_position = np.where(G_label == gt_labels_array)
@@ -1056,15 +1056,18 @@ class FI_report_classifier(object):
                             for F_idx, F_label in enumerate(list(faulty_dict.keys())):
                                 # self._num_faulty_images += 1
                                 # if faulty label is the right
-                                print(f'F_label == t_label? {F_label == t_label}')
+                                # print(f'F_label == t_label? {F_label == t_label}')
                                 if F_label == t_label:
                                     # print(F_label)
                                     # compute the iou with respect to the golden prediction
                                     buffer_faulty_score = 0
                                     buffer_conf = 0
-                                    fault_bbs = np.array(faulty_dict[F_label])[0]
-                                    scores = np.array(faulty_dict[F_label])[1]
-                                    for bb in bbs:
+                                    buffer_g_conf = 0
+                                    fault_bbs = np.array([arr[0] for arr in faulty_dict[F_label]])
+                                    scores = [score[1] for score in faulty_dict[F_label]]
+                                    for bb_score in bbs_scores:
+                                        bb = bb_score[0]
+                                        g_score = bb_score[1]
                                         faulty_disatnces1 = np.linalg.norm(bb[0:2] - fault_bbs[:,0:2], axis=1, ord=2)
                                         faulty_disatnces2 = np.linalg.norm(bb[2:4] - fault_bbs[:,2:4], axis=1, ord=2)
 
@@ -1076,6 +1079,7 @@ class FI_report_classifier(object):
                                         # take the array correspinding to the lowest distance from the reference gt_bb 
                                         f_candidate_bb = fault_bbs[f_candidate_idx]
                                         buffer_conf += scores[f_candidate_idx]
+                                        buffer_g_conf += g_score
                                         # compute the score between the nearest bb and the gt_bb
                                         f_score = compute_iou(bb, f_candidate_bb)
                                         # print(f'f_score: {f_score}')
@@ -1086,8 +1090,9 @@ class FI_report_classifier(object):
                                         fault_bbs = np.delete(fault_bbs, f_candidate_idx, axis = 0)
                                         if len(fault_bbs) == 0:
                                             break
-                                    normalized_conf = buffer_conf/len(bbs)
-                                    normalized_faulty = buffer_faulty_score/len(bbs)
+                                    normalized_conf = buffer_conf/len(bbs_scores)
+                                    normalized_faulty = buffer_faulty_score/len(bbs_scores)
+                                    normaized_g_conf =  buffer_g_conf / len(bbs_scores)
                                     # print(f'normalized_faulty: {normalized_faulty}')
                                     if normalized_faulty == 1:
                                         coverage = 'masked'
@@ -1120,10 +1125,11 @@ class FI_report_classifier(object):
                                 df = pd.DataFrame({'FaultID':FaultID,
                                                     'imID': index,                                    
                                                     'G_lab':G_label,
-                                                    'pred_idx': F_idx,                                      
+                                                    'Pred_idx': F_idx, # for each label predicted by the faulty model                                      
                                                     'F_lab':F_label,
                                                     'G_Target':t_label,
-                                                    'score': normalized_conf,},index=[0])  
+                                                    'f_conf_score': normalized_conf,
+                                                    'g_conf_score': normaized_g_conf},index=[0])  
                                 self.Full_report = pd.concat([self.Full_report,df],ignore_index=True)
                                 
                             if len(list(faulty_dict.keys())) > 0:
@@ -1133,7 +1139,7 @@ class FI_report_classifier(object):
                                     
 
                             buffer_golden_score = 0
-                            golden_pred_bbs = np.array(golden_pred_dict[G_label])[0]
+                            golden_pred_bbs = np.array([arr[0] for arr in golden_pred_dict[G_label]])
                             gt_bbs = gt_dict[t_label]
 
                             for gt_bb in gt_bbs:
@@ -1147,7 +1153,7 @@ class FI_report_classifier(object):
                                 g_candidate_bb = golden_pred_bbs[g_candidate_idx]
 
                                 g_score = compute_iou(gt_bb, g_candidate_bb)
-                                # print(f'g_score: {g_score}')
+
                                 golden_score_per_label.append((G_label, g_score))
 
                                 golden_pred_bbs = np.delete(golden_pred_bbs, g_candidate_idx, axis = 0)
@@ -1159,14 +1165,11 @@ class FI_report_classifier(object):
 
                         
                             g_buffer_per_img += buffer_golden_score /len(gt_bbs)
-                            # self.giou += buffer_per_label / len(list(gt_dict.keys()))
                         else:
                             g_buffer_per_img += 0.0
 
                         gt_labels_array = np.delete(gt_labels_array, t_position)
 
-                        # print(f'self.giou: {self.giou}')
-                        # print(f'self.fiou: {self.fiou}')
                     if len(list(faulty_dict.keys())) > 0:
                         self.fiou += f_buffer_per_img / len(list(faulty_dict.keys()))
                     else: 
