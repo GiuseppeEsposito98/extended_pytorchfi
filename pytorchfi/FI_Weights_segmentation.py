@@ -914,7 +914,7 @@ class FI_report_classifier(object):
         if os.path.exists(os.path.join(self.log_path,old_report_name)):
             os.system(f"mv {os.path.join(self.log_path,old_report_name)} {os.path.join(self.log_path,new_golden_name)}")
         self._report_dictionary=self.load_report(file_name)
-        logger.info(f'********: {self._report_dictionary}')
+        # logger.info(f'********: {self._report_dictionary}')
         
 
     def load_report(self,file_name):
@@ -938,12 +938,10 @@ class FI_report_classifier(object):
 
 
     def update_segmentation_report(self,index,output,target,topk=(1,)):
-        maxk=max(topk)
+        # maxk=max(topk)
         self._report_dictionary[index]={}
-        pred, clas=output.cpu().topk(maxk,1,True,True)
-        self._report_dictionary[index]['pred']=pred.tolist()
-        self._report_dictionary[index]['clas']=clas.tolist()
-        self._report_dictionary[index]['target']=target.cpu().tolist()
+        self._report_dictionary[index]['pred_mask']=output.tolist()
+        self._report_dictionary[index]['target_mask']=target.cpu().tolist()
         
         
     def Fault_parser(self,golden_file_report, faulty_file_report, topk=(1,)):
