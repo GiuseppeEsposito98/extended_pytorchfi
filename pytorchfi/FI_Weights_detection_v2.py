@@ -1044,9 +1044,9 @@ class FI_report_classifier(object):
                                                 'G_lab':G_label,
                                                 'Pred_idx': g_idx, # for each label predicted by the faulty model                                      
                                                 'F_lab':f_candidate_lab.item(),
-                                                'F_count': len(fault_labs),
-                                                'G_count': len(g_labels),
-                                                'T_count': len(gt_labels),
+                                                'F_count': self.f_boxes_count,
+                                                'G_count': self.g_boxes_count,
+                                                'T_count': self.t_boxes_count,
                                                 'area_ratio': ratio, # this is the ratio between the area of the golden box and the corresponding faulty box
                                                 'confidence_ratio': conf_ratio.item()},index=[0])  
                             
