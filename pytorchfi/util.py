@@ -98,8 +98,6 @@ def compute_iou(gt_bb: List[Union[float, float, float, float]],
     # get coordinates
     gt_x1, gt_y1, gt_x2, gt_y2 = extract_coordinates(gt_bb)
     pred_x1, pred_y1, pred_x2, pred_y2 = extract_coordinates(pred_bb)
-    # print(f'extract_coordinates(gt_bb): {extract_coordinates(gt_bb)}')
-
     # intersection box design
     bot_left_x = max(gt_x1, pred_x1)
     bot_left_y = max(gt_y1, pred_y1)
@@ -109,15 +107,14 @@ def compute_iou(gt_bb: List[Union[float, float, float, float]],
 
     # intersection area
     intersection = max(0, top_right_x - bot_left_x + 1) * max(0, top_right_y - bot_left_y + 1)
-    # print(f'intersection: {intersection}')
+    # print(f'max(0, top_right_y - bot_left_y + 1): {max(0, top_right_y - bot_left_y + 1)}')
 
-    # independent boxes areas
+
     area_gt = (gt_x2 - gt_x1 + 1) * (gt_y2 - gt_y1 + 1)
 
     area_pred = (pred_x2 - pred_x1 + 1) * (pred_y2 - pred_y1 + 1)
-
+    
     union = (area_gt + area_pred - intersection)
-    # print(f'union: {union}')
     if union != 0:
         score = (intersection / union)
     else: 
@@ -125,12 +122,9 @@ def compute_iou(gt_bb: List[Union[float, float, float, float]],
     return score
 
 
-def extract_coordinates(bb):
-    return math.floor(bb[0]), math.floor(bb[1]), math.ceil(bb[2]), math.ceil(bb[2])
-
 
 def extract_coordinates(bb):
-    return math.floor(bb[0]), math.floor(bb[1]), math.ceil(bb[2]), math.ceil(bb[2])
+    return math.floor(bb[0]), math.floor(bb[1]), math.ceil(bb[2]), math.ceil(bb[3])
 
 def compute_mAP(metric_setting:MeanAveragePrecision,
                 gt_labels: torch.Tensor,
@@ -184,3 +178,19 @@ def setup_target_dict_mAP(labels:torch.Tensor, bb:torch.Tensor):
     tmp['boxes'] = bb
     tmp['labels'] = labels
     return tmp
+
+
+def compute_ratio(gt_bb: torch.Tensor,
+                    pred_bb: torch.Tensor):
+    
+    # get coordinates
+    gt_x1, gt_y1, gt_x2, gt_y2 = extract_coordinates(gt_bb)
+    pred_x1, pred_y1, pred_x2, pred_y2 = extract_coordinates(pred_bb)
+
+    area_gt = (gt_x2 - gt_x1 + 1) * (gt_y2 - gt_y1 + 1)
+
+    area_pred = (pred_x2 - pred_x1 + 1) * (pred_y2 - pred_y1 + 1)
+
+    ratio = area_pred / area_gt
+    # print(f'ratio: {ratio}')
+    return ratio
