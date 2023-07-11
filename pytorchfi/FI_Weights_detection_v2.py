@@ -304,8 +304,8 @@ def generate_fault_list_sbfm(path,pfi_model:FaultInjection, **kwargs):
                 N=N*(MSB_inection-LSB_injection+1)
 
             # print(N)
-            # n=int(N/(1+(E**2)*(N-1)/((T**2)*P*(1-P))))
-            n = 5
+            n=int(N/(1+(E**2)*(N-1)/((T**2)*P*(1-P))))
+            # n = 5
             print(f'**********************: {n}')
             # n = 2
             #print(n)                
@@ -718,6 +718,12 @@ class FI_report_classifier(object):
         self.SDC=0
         self.Critical=0
         self.Masked=0
+        self.g_boxes_count=0
+        self.G_boxes_count=0
+        self.f_boxes_count=0
+        self.F_boxes_count=0
+        self.t_boxes_count=0
+        self.T_boxes_count=0
 
 
         self.Giou=torch.tensor([0.0])
@@ -767,7 +773,8 @@ class FI_report_classifier(object):
         if not os.path.exists(os.path.join(self.log_path,self.fault_report_filename)):
             self._fsim_report=pd.DataFrame(columns=['gold_iou@1',
                                         'boxes_Crit','boxes_SDC','boxes_Masked',
-                                        'fault_iou@1','Class', 'area_ratio'])  
+                                        'fault_iou@1','Class', 'area_ratio', 'average_golden_boxes',
+                                        'average_faulty_boxes', 'average_target_boxes'])  
             
             self._fsim_report.to_csv(os.path.join(self.log_path,self.fault_report_filename),sep=',')
         else:
@@ -805,10 +812,16 @@ class FI_report_classifier(object):
 
         self.Giou = torch.tensor([0.0])
         self.giou = torch.tensor([0.0])
+        self.g_boxes_count=0
+        self.f_boxes_count=0
+        self.t_boxes_count=0
 
         self.Fiou = torch.tensor([0.0])
         self.fiou = torch.tensor([0.0])
         self.fratio = torch.tensor([0.0])
+        self.G_boxes_count=0
+        self.F_boxes_count=0
+        self.T_boxes_count=0
 
 
     def _update_chpt_info(self):    
@@ -837,6 +850,9 @@ class FI_report_classifier(object):
         print(f'self.giou: {self.giou}')
         self.Giou = (self.giou / self._num_imgs) * 100
         self.Fiou = (self.fiou / self._num_imgs) * 100
+        self.G_boxes_count = self.g_boxes_count / self._num_imgs
+        self.F_boxes_count = self.f_boxes_count / self._num_imgs
+        self.T_boxes_count = self.t_boxes_count / self._num_imgs
     
         # self.Giou=self._gold_iou*100/self._num_images
         # self.Fiou=self._faul_iou*100/self._num_images
@@ -853,7 +869,9 @@ class FI_report_classifier(object):
         self._fault_dictionary['fault_iou@1'] = self.Fiou.item()
         self._fault_dictionary['Class'] = self.Top1_faulty_code
         self._fault_dictionary['area_ratio'] = self.fratio
-
+        self._fault_dictionary['average_golden_boxes'] = self.G_boxes_count
+        self._fault_dictionary['average_faulty_boxes'] = self.F_boxes_count
+        self._fault_dictionary['average_target_boxes'] = self.T_boxes_count
 
     
 
@@ -922,9 +940,12 @@ class FI_report_classifier(object):
             gt_labels = deepcopy(torch.squeeze(G_gt_labels))
             gt_bb = deepcopy(torch.squeeze(G_gt_bb))
 
+            self.t_boxes_count += len(gt_labels)
+
             g_labels = deepcopy(torch.squeeze(G_pred_labels))
             g_bbs = deepcopy(G_pred_bb)
 
+            self.g_boxes_count += len(g_labels)
             
 
             if G_gt_labels.nelement() != 0:
@@ -949,6 +970,9 @@ class FI_report_classifier(object):
                     fault_bbs = deepcopy(F_pred_bb)
                     fault_labs = deepcopy(F_pred_labels)
                     fault_confs = deepcopy(F_pred_scores)
+                    print(f'fault_labs: {fault_labs}')
+
+                    self.f_boxes_count += len(fault_labs)
 
 
                     if len(fault_bbs) > 0:
@@ -986,22 +1010,22 @@ class FI_report_classifier(object):
 
                                 if f_candidate_lab == G_label:
                                     if conf_ratio == 1:
-                                        # print('high score | same label | high confidence')
+                                        print('high score | same label | high confidence')
                                         self.Masked += 1
                                     else: 
-                                        # print('high score | same label | low confidence')
+                                        print('high score | same label | low confidence')
                                         self.SDC += 1
                                 else:
-                                    # print('high score | different label')
+                                    print('high score | different label')
                                     self.Critical += 1
 
                             elif f_score < 1 and f_score > 0.5:
 
                                 if f_candidate_lab == G_label:
-                                    # print('medium score | same label')
+                                    print('medium score | same label')
                                     self.SDC += 1
                                 else: 
-                                    # print('medium score | different label')
+                                    print('medium score | different label')
                                     self.Critical += 1
 
                             elif f_score < 0.5:
@@ -1020,6 +1044,9 @@ class FI_report_classifier(object):
                                                 'G_lab':G_label,
                                                 'Pred_idx': g_idx, # for each label predicted by the faulty model                                      
                                                 'F_lab':f_candidate_lab.item(),
+                                                'F_count': len(fault_labs),
+                                                'G_count': len(g_labels),
+                                                'T_count': len(gt_labels),
                                                 'area_ratio': ratio, # this is the ratio between the area of the golden box and the corresponding faulty box
                                                 'confidence_ratio': conf_ratio.item()},index=[0])  
                             
@@ -1048,8 +1075,7 @@ class FI_report_classifier(object):
                         g_candidate_idx = np.argmin(g_buffer)
 
                         g_candidate_bb = bbs[g_candidate_idx]
-                        print(f't_bb: {t_bb}')
-                        print(f'g_candidate_bb: {g_candidate_bb}')
+
                         # print(f'g_candidate_bb: {g_candidate_bb}')
                         g_score = compute_iou(g_candidate_bb, t_bb)
                         # print(f'g_score: {g_score}')
@@ -1058,12 +1084,12 @@ class FI_report_classifier(object):
                         g_bbs = np.delete(g_bbs, g_positions[g_candidate_idx], axis = 0)
                         g_labels = np.delete(g_labels, g_positions[g_candidate_idx], axis = 0)
                     else: 
-                        print('labels are different')
+                        
                         buffer_g_iou += 0.0
                 
                 if non_empty_t_bb > 0:
                     self.giou += buffer_g_iou/non_empty_t_bb
-                    print(buffer_g_iou)
+                    
                 else:
                     self.giou += 0.0
 
@@ -1072,7 +1098,6 @@ class FI_report_classifier(object):
                     
                     self.fratio += buffer_ratio/f_bb_counter
                 else:
-                    print('no golden predictions')
                     self.fiou += 0.0
                     
                     self.fratio += 0.0
