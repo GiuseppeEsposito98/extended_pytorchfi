@@ -1117,6 +1117,7 @@ class FI_report_classifier(object):
                                     self.Critical += 1
                                     normalized_faulty = 0.0
                                     normalized_conf = None
+                                    normaized_g_conf = None
                                 # print(f'normalized_faulty: {normalized_faulty}')
                                 buffer_faulty_per_label += normalized_faulty
 
