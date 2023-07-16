@@ -1091,23 +1091,23 @@ class FI_report_classifier(object):
                                 self.Full_report = pd.concat([self.Full_report,df],ignore_index=True)
 
                             if len(fault_bbs) == 0:
-                                FaultID=faulty_file_report.split("/")[-1].split(".")[0]
-                                for g_idx_2 in range(len(iter_g_bb[g_idx:])):
+                                # FaultID=faulty_file_report.split("/")[-1].split(".")[0]
+                                # for g_idx_2 in range(len(iter_g_bb[g_idx:])):
 
-                                    df = pd.DataFrame({'FaultID':FaultID,
-                                                        'imID': index,                                    
-                                                        'G_lab':G_label,
-                                                        'Pred_idx': g_idx_2, # for each label predicted by the faulty model                                      
-                                                        'F_lab':None,
-                                                        'F_count': f_count,
-                                                        'G_count': g_count,
-                                                        'T_count': t_count,
-                                                        'iou score': None,
-                                                        'area_ratio': None, # this is the ratio between the area of the golden box and the corresponding faulty box
-                                                        'f_candidate_conf': None,
-                                                        'G_score': G_score.item()*100},index=[0])  
+                                #     df = pd.DataFrame({'FaultID':FaultID,
+                                #                         'imID': index,                                    
+                                #                         'G_lab':G_label,
+                                #                         'Pred_idx': g_idx_2, # for each label predicted by the faulty model                                      
+                                #                         'F_lab':None,
+                                #                         'F_count': f_count,
+                                #                         'G_count': g_count,
+                                #                         'T_count': t_count,
+                                #                         'iou score': None,
+                                #                         'area_ratio': None, # this is the ratio between the area of the golden box and the corresponding faulty box
+                                #                         'f_candidate_conf': None,
+                                #                         'G_score': G_score.item()*100},index=[0])  
                                     
-                                    self.Full_report = pd.concat([self.Full_report,df],ignore_index=True)
+                                #     self.Full_report = pd.concat([self.Full_report,df],ignore_index=True)
                                 break
 
                 # gt_labels_list = list(gt_labels)
