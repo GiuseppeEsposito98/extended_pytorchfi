@@ -305,7 +305,7 @@ def generate_fault_list_sbfm(path,pfi_model:FaultInjection, **kwargs):
 
             # print(N)
             n=int(N/(1+(E**2)*(N-1)/((T**2)*P*(1-P))))
-            # n = 5
+            # n = 10
             print(f'**********************: {n}')
             # n = 2
             #print(n)                
@@ -326,7 +326,8 @@ def generate_fault_list_sbfm(path,pfi_model:FaultInjection, **kwargs):
                     h=None
                     w=None
 
-                mask=2**(random.randint(LSB_injection,MSB_inection))                
+                mask=2**(random.randint(LSB_injection,MSB_inection))   
+                # mask = 1073741824             
                 fault=[layr,k,c,h,w,mask]
                 if fault not in fault_list :
                     fault_list.append(fault)
@@ -978,7 +979,7 @@ class FI_report_classifier(object):
                 f_bb_counter = 0
 
                 # print(f'gt_labels.shape[0]: {gt_labels.shape[0]}')
-                print(f'gt_labels.nelement(): {gt_labels.nelement()}')
+                # print(f'gt_labels.nelement(): {gt_labels.nelement()}')
                 
                 t_count = gt_labels.nelement()
                 self.t_boxes_count += t_count
@@ -993,29 +994,54 @@ class FI_report_classifier(object):
                     F_gt_bb=torch.tensor(self.Faulty['gt_boxes'],requires_grad=False)
                     F_gt_labels=torch.tensor(self.Faulty['gt_labels'],requires_grad=False)
 
-                    fault_bbs = torch.tensor([list(bb) for bb, score in zip(F_pred_bb, F_pred_scores) if score > 0.6])
-                    # fault_bbs = deepcopy(F_pred_bb)
-                    fault_labs = torch.tensor([label for label, score in zip(F_pred_labels, F_pred_scores) if score > 0.6])
-                    # fault_labs = deepcopy(F_pred_labels)
-                    fault_confs = torch.tensor([conf for conf in F_pred_scores if conf > 0.6])
-                    # fault_confs = deepcopy(F_pred_scores)
+                    fault_bbs = list()
+                    fault_labs = list()
+                    fault_confs = list()
+
+                    remaining_bbs = list()
+                    remaining_confs = list()
+                    remaining_labs = list()
+                    
+
+                    for bb, score, label in zip(F_pred_bb, F_pred_scores, F_pred_labels):
+                        if score > 0.6:
+                            fault_bbs.append(list(bb))
+                            fault_labs.append(label)
+                            fault_confs.append(score)
+                        else: 
+                            remaining_bbs.append(list(bb))
+                            remaining_labs.append(label)
+                            remaining_confs.append(score)
+
+                        
+                    fault_bbs = torch.tensor(fault_bbs)
+                    fault_labs = torch.tensor(fault_labs)
+                    fault_confs = torch.tensor(fault_confs)
+
+                    remaining_bbs = torch.tensor(remaining_bbs)
+                    remaining_labs = torch.tensor(remaining_labs)
+                    remaining_confs = torch.tensor(remaining_confs)
+
+                    print(f'fault_bbs: {fault_bbs}')
                     print(f'fault_labs: {fault_labs}')
+                    print(f'fault_confs: {fault_confs}')
+
+                    print(f'remaining_bbs: {remaining_bbs}')
+                    print(f'remaining_labs: {remaining_labs}')
+                    print(f'remaining_confs: {remaining_confs}')
 
 
-                    if len(fault_bbs) > 0:
-                        # print(f'len(fault_labs): {len(fault_labs)}')
-                        # print(f'fault_labs.shape[0]: {fault_labs.shape[0]}')
-                        # print(f'fault_labs: {fault_labs}')
+                    f_count = fault_labs.nelement()
+                    self.f_boxes_count += f_count
 
-                        f_count = fault_labs.nelement()
-                        self.f_boxes_count += f_count
+                    for g_idx in range(len(iter_g_bb)):
 
-                        for g_idx in range(len(iter_g_bb)):
-
-                            G_score = G_pred_scores[g_idx]
-                            
-                            G_label = G_pred_labels[g_idx].item()
-                            bb = G_pred_bb[g_idx]   
+                        G_score = G_pred_scores[g_idx]
+                        G_label = G_pred_labels[g_idx].item()
+                        bb = G_pred_bb[g_idx] 
+                        print(f'len(fault_bbs): {len(fault_bbs)}')
+                        if len(fault_bbs) > 0:
+                                
                             f_bb_counter += 1
                             # faulty model analysis
                             faulty_disatnces1 = np.linalg.norm(bb[0:2] - fault_bbs[:,0:2], axis=1, ord=2)
@@ -1053,7 +1079,7 @@ class FI_report_classifier(object):
                                     print('high score | different label')
                                     self.Critical += 1
 
-                            elif f_score < 1 and f_score > 0.5:
+                            elif f_score < 1 and f_score > 0.9:
 
                                 if f_candidate_lab == G_label:
                                     print('medium score | same label')
@@ -1062,7 +1088,7 @@ class FI_report_classifier(object):
                                     print('medium score | different label')
                                     self.Critical += 1
 
-                            elif f_score < 0.5:
+                            elif f_score < 0.9:
                                 # print('low score')
                                 self.Critical += 1
                                 
@@ -1072,7 +1098,8 @@ class FI_report_classifier(object):
                             fault_confs = np.delete(fault_confs, f_candidate_idx, axis = 0)
 
                             if f_score < 0.9 or f_candidate_lab != G_label:
-
+                                # print(f'f_score: {f_score}')
+                                # print(f'f_candidate_lab: {G_label}')
                                 FaultID=faulty_file_report.split("/")[-1].split(".")[0]
 
                                 df = pd.DataFrame({'FaultID':FaultID,
@@ -1080,35 +1107,92 @@ class FI_report_classifier(object):
                                                     'G_lab':G_label,
                                                     'Pred_idx': g_idx, # for each label predicted by the faulty model                                      
                                                     'F_lab':f_candidate_lab.item(),
+                                                    'f_bb': f"{f_candidate_bb.detach().tolist()}",
                                                     'F_count': f_count,
                                                     'G_count': g_count,
                                                     'T_count': t_count,
                                                     'iou score': f_score*100,
                                                     'area_ratio': ratio*100, # this is the ratio between the area of the golden box and the corresponding faulty box
                                                     'f_candidate_conf': f_candidate_conf.item()*100,
-                                                    'G_score': G_score.item()*100},index=[0])  
+                                                    'confidence_covered': True,
+                                                    'G_score': G_score.item()*100,
+                                                    'g_bb': f"{bb.detach().tolist()}"},index=[0])  
+                                
+                                self.Full_report = pd.concat([self.Full_report,df],ignore_index=True)
+                        else:
+                            print(f'len(remaining_bbs): {len(remaining_bbs)}')
+                            if len(remaining_bbs) > 0:
+                                f_bb_counter += 1
+                                # faulty model analysis
+                                faulty_disatnces1 = np.linalg.norm(bb[0:2] - remaining_bbs[:,0:2], axis=1, ord=2)
+                                faulty_disatnces2 = np.linalg.norm(bb[2:4] - remaining_bbs[:,2:4], axis=1, ord=2)
+                                # print(faulty_disatnces1)
+                                # print(faulty_disatnces2)
+                                f_buffer = faulty_disatnces1 + faulty_disatnces2
+                                # print(f'f_buffer: {f_buffer}')
+                                # take the lowest one
+                                f_candidate_idx = np.argmin(f_buffer)
+                                # print(f'f_candidate_idx: {f_candidate_idx}')
+                                # take the array correspinding to the lowest distance from the reference gt_bb 
+                                f_candidate_bb = remaining_bbs[f_candidate_idx]
+                                f_candidate_lab = remaining_labs[f_candidate_idx]
+                                f_candidate_conf = remaining_confs[f_candidate_idx]
+
+                                f_score = compute_iou(bb, f_candidate_bb)
+                                ratio = compute_ratio(bb, f_candidate_bb)
+                                
+                                # buffer_f_iou += f_score
+                                # buffer_ratio += ratio
+                                FaultID=faulty_file_report.split("/")[-1].split(".")[0]
+
+                                df = pd.DataFrame({'FaultID':FaultID,
+                                                    'imID': index,                                    
+                                                    'G_lab':G_label,
+                                                    'Pred_idx': g_idx, # for each label predicted by the faulty model                                      
+                                                    'F_lab':f_candidate_lab.item(),
+                                                    'f_bb': f"{f_candidate_bb.detach().tolist()}",
+                                                    'F_count': f_count,
+                                                    'G_count': g_count,
+                                                    'T_count': t_count,
+                                                    'iou score': f_score*100,
+                                                    'area_ratio': ratio*100, # this is the ratio between the area of the golden box and the corresponding faulty box
+                                                    'f_candidate_conf': f_candidate_conf.item()*100,
+                                                    'confidence_covered': False,
+                                                    'G_score': G_score.item()*100,
+                                                    'g_bb': f"{bb.detach().tolist()}"},index=[0])  
                                 
                                 self.Full_report = pd.concat([self.Full_report,df],ignore_index=True)
 
-                            if len(fault_bbs) == 0:
-                                # FaultID=faulty_file_report.split("/")[-1].split(".")[0]
-                                # for g_idx_2 in range(len(iter_g_bb[g_idx:])):
+                                self.Critical += 1
 
-                                #     df = pd.DataFrame({'FaultID':FaultID,
-                                #                         'imID': index,                                    
-                                #                         'G_lab':G_label,
-                                #                         'Pred_idx': g_idx_2, # for each label predicted by the faulty model                                      
-                                #                         'F_lab':None,
-                                #                         'F_count': f_count,
-                                #                         'G_count': g_count,
-                                #                         'T_count': t_count,
-                                #                         'iou score': None,
-                                #                         'area_ratio': None, # this is the ratio between the area of the golden box and the corresponding faulty box
-                                #                         'f_candidate_conf': None,
-                                #                         'G_score': G_score.item()*100},index=[0])  
-                                    
-                                #     self.Full_report = pd.concat([self.Full_report,df],ignore_index=True)
-                                break
+                                remaining_bbs = np.delete(remaining_bbs, f_candidate_idx, axis = 0)
+                                remaining_labs = np.delete(remaining_labs, f_candidate_idx, axis = 0)
+                                remaining_confs = np.delete(remaining_confs, f_candidate_idx, axis = 0)
+
+                            else: 
+                                FaultID=faulty_file_report.split("/")[-1].split(".")[0]
+                                self.Critical += 1
+
+                                df = pd.DataFrame({'FaultID':FaultID,
+                                                    'imID': index,                                    
+                                                    'G_lab':G_label,
+                                                    'Pred_idx': g_idx, # for each label predicted by the faulty model                                      
+                                                    'F_lab':None,
+                                                    'f_bb': None,
+                                                    'F_count': f_count,
+                                                    'G_count': g_count,
+                                                    'T_count': t_count,
+                                                    'iou score': None,
+                                                    'area_ratio': None, # this is the ratio between the area of the golden box and the corresponding faulty box
+                                                    'f_candidate_conf': None,
+                                                    'confidence_covered': False,
+                                                    'G_score': G_score.item()*100,
+                                                    'g_bb': f"{bb.detach().tolist()}"},index=[0])  
+                                
+                                self.Full_report = pd.concat([self.Full_report,df],ignore_index=True)
+
+
+                            
 
                 # gt_labels_list = list(gt_labels)
                 for t_idx in range(len(gt_bb)):
