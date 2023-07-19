@@ -18,6 +18,7 @@ import pytorchfi.core as core
 from pytorchfi.util import random_value
 from pytorchfi.core import *
 from pytorchfi.neuron_error_models import *
+from torchdistill.eval.coco import SegEvaluator
 
 logger=logging.getLogger("Fault_injection") 
 logger.setLevel(logging.DEBUG) 
@@ -696,6 +697,7 @@ class FI_report_classifier(object):
         self._kW=0
         self._layer=0    
         self._num_images=0
+        self._num_classes=0
         self._gold_acc1=torch.tensor([0.0])
         self._gold_acck=torch.tensor([0.0])
         self._faul_acc1=torch.tensor([0.0])
@@ -937,14 +939,15 @@ class FI_report_classifier(object):
             json.dump(self._report_dictionary,Golden_file)
 
 
-    def update_segmentation_report(self,index,output,target,topk=(1,)):
+    def update_segmentation_report(self,index,output,target,num_classes):
         # maxk=max(topk)
         self._report_dictionary[index]={}
         self._report_dictionary[index]['pred_mask']=output.tolist()
         self._report_dictionary[index]['target_mask']=target.cpu().tolist()
+        self._num_classes = num_classes
         
         
-    def Fault_parser(self,golden_file_report, faulty_file_report, topk=(1,)):
+    def Fault_parser(self,golden_file_report, faulty_file_report):
 
         self._golden_dictionary=self.load_report(golden_file_report)
         self._FI_dictionary=self.load_report(faulty_file_report)
@@ -954,103 +957,9 @@ class FI_report_classifier(object):
             G_pred=torch.tensor(self.Golden['pred'],requires_grad=False).t()
             G_clas=torch.tensor(self.Golden['clas'],requires_grad=False).t()
             G_target=torch.tensor(self.Golden['target'],requires_grad=False)
-            batch_size = G_target.size(0)
+
+
             
-            maxk=max(topk)
-            mink=min(topk)
-
-            CMPGolden=G_clas.eq(G_target[None])
-
-            self.Gacc1=CMPGolden[:mink].sum(dim=0,dtype=torch.float32)
-            self.Gacc5=CMPGolden[:maxk].sum(dim=0,dtype=torch.float32)
-
-            gold_result_list = []
-            for k in topk:
-                gold_correct_k = CMPGolden[:k].flatten().sum(dtype=torch.float32)
-                gold_result_list.append(gold_correct_k) 
-
-            self._num_images+=batch_size
-            self._gold_acc1+=gold_result_list[0]
-            self._gold_acck+=gold_result_list[1]
-            
-            if index in self._FI_dictionary:
-                ResTop1=""
-                ResTop5=""
-                
-                self.Faulty=self._FI_dictionary[index]
-
-                FI_pred=torch.tensor(self.Faulty['pred'],requires_grad=False).t()
-                FI_clas=torch.tensor(self.Faulty['clas'],requires_grad=False).t()
-                FI_target=torch.tensor(self.Faulty['target'],requires_grad=False)
-
-                
-                CMPFaulty=FI_clas.eq(FI_target[None]) # bolean comparison between twoo tnesors of different shape
-
-                self.Facc1=CMPFaulty[:mink].sum(dim=0,dtype=torch.float32)
-                self.Facc5=CMPFaulty[:maxk].sum(dim=0,dtype=torch.float32)
-
-                CMPpredGoldFaulty=G_pred.eq(FI_pred).sum(dim=0,dtype=torch.float32)
-                CMPClasGoldFaulty=G_clas.eq(FI_clas).sum(dim=0,dtype=torch.float32)
-                ResTop1=[]
-                ResTop5=[]
-
-                for img in range(batch_size):                
-                    if self.Gacc1[img] == self.Facc1[img]:
-                        if(CMPpredGoldFaulty[img] == CMPClasGoldFaulty[img]):
-                            self.T1_Masked+=1                
-                            ResTop1.append("Masked")
-                            # print(CMPpredGoldFaulty)
-                            # print(CMPClasGoldFaulty)
-                        else:
-                            self.T1_SDC+=1
-                            ResTop1.append("SDC")
-                    else:
-                        self.T1_Critical+=1
-                        ResTop1.append("Critical")
-
-                    if self.Gacc5[img] == self.Facc5[img]:
-                        if(CMPpredGoldFaulty[img] == CMPClasGoldFaulty[img]):
-                            self.T5_Masked+=1
-                            ResTop5.append("Masked")
-                            # print(CMPpredGoldFaulty)
-                            # print(CMPClasGoldFaulty)
-                        else:
-                            self.T5_SDC+=1
-                            ResTop5.append("SDC")
-                    else:
-                        self.T5_Critical+=1
-                        ResTop5.append("Critical")
-                    
-                    FaultID=faulty_file_report.split("/")[-1].split(".")[0]
-
-                    # why do you do it only for the classes corresponding in G and not in F?
-                    if ((G_target[img]==G_clas.t()[img][0]) and (G_target[img]!=FI_clas.t()[img][0])
-                        ) or ((G_target[img] in G_clas.t()[img]) and (G_target[img] not in FI_clas.t()[img])):
-                        for idx,val in enumerate(G_pred.t()[img]): 
-                            df1 = pd.DataFrame({'FaultID':FaultID,
-                                                'imID': (batch_size*int(index)+img),                                    
-                                                'Pred_idx':idx,
-                                                'G_pred':val.item(),
-                                                'F_pred':FI_pred.t()[img][idx].item(),
-                                                'G_clas':G_clas.t()[img][idx].item(),                                      
-                                                'F_clas':FI_clas.t()[img][idx].item(),
-                                                'G_Target':G_target[img].item()},index=[0])  
-                            self.Full_report = pd.concat([self.Full_report,df1],ignore_index=True)
-
-                    
-                self._FI_dictionary[index]['ResTop1']=ResTop1 
-                self._FI_dictionary[index]['ResTopk']=ResTop5 
-
-                faul_result_list = []
-                for k in topk:
-                    faul_correct_k = CMPFaulty[:k].flatten().sum(dtype=torch.float32)
-                    faul_result_list.append(faul_correct_k) 
-
-                self._faul_acc1+=faul_result_list[0]
-                self._faul_acck+=faul_result_list[1]
-            else:
-                self.T5_Critical+=batch_size
-                self.T1_Critical+=batch_size
         file_name=faulty_file_report.split('/')[-1].split('.')[0]
         csv_report=f"{file_name}.csv"
         if(len(self.Full_report)>0):
