@@ -19,6 +19,7 @@ from pytorchfi.util import random_value
 from pytorchfi.core import *
 from pytorchfi.neuron_error_models import *
 from torchdistill.eval.coco import SegEvaluator
+from torchmetrics import JaccardIndex
 
 logger=logging.getLogger("Fault_injection") 
 logger.setLevel(logging.DEBUG) 
@@ -952,11 +953,30 @@ class FI_report_classifier(object):
         self._golden_dictionary=self.load_report(golden_file_report)
         self._FI_dictionary=self.load_report(faulty_file_report)
         self.Full_report = pd.DataFrame()
+
         for index in self._golden_dictionary:
             self.Golden=self._golden_dictionary[index]
-            G_pred=torch.tensor(self.Golden['pred'],requires_grad=False).t()
-            G_clas=torch.tensor(self.Golden['clas'],requires_grad=False).t()
-            G_target=torch.tensor(self.Golden['target'],requires_grad=False)
+            G_pred=torch.tensor(self.Golden['pred_mask'],requires_grad=False)
+            G_target=torch.tensor(self.Golden['target_mask'],requires_grad=False)
+
+            seg_evaluator = SegEvaluator(self._num_classes)
+            seg_evaluator.update(G_target, G_pred)
+            print(f'golden.compute(): {seg_evaluator.compute()}')
+
+            if index in self._FI_dictionary:
+
+                self.Faulty = self._FI_dictionary[index]
+
+                seg_evaluator = SegEvaluator(self._num_classes)
+
+                F_pred=torch.tensor(self.Faulty['pred_mask'],requires_grad=False)
+                F_target=torch.tensor(self.Faulty['target_mask'],requires_grad=False)
+
+                seg_evaluator.update(F_target, F_pred)
+                print(f'faulty.compute(): {seg_evaluator.compute()}')
+
+
+
 
 
             
@@ -1305,7 +1325,7 @@ class FI_manager(object):
 
     def parse_results(self):    
         self.close_faulty_results()    
-        self.FI_report.Fault_parser(self._golden_file_name,self._faulty_file_name,topk=(1,5))
+        self.FI_report.Fault_parser(self._golden_file_name,self._faulty_file_name)
         self.write_reports()
     
     def terminate_fsim(self):
