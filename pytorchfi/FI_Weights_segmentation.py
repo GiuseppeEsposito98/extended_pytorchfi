@@ -972,12 +972,34 @@ class FI_report_classifier(object):
                 F_pred=torch.tensor(self.Faulty['pred_mask'],requires_grad=False)
                 F_target=torch.tensor(self.Faulty['target_mask'],requires_grad=False)
 
-                seg_evaluator.update(F_target, F_pred)
+                seg_evaluator.update(G_pred, F_pred)
                 print(f'faulty.compute(): {seg_evaluator.compute()}')
+                pixelwise_global_acc, class_prec, iou_score = seg_evaluator.compute()
 
+                nan_indices = torch.nonzero(torch.isnan(class_prec))
 
+                for idx in nan_indices:
+                    
+                    if pixelwise_global_acc == 1:
+                        self.Masked += 1
+                    elif pixelwise_global_acc < 1 and pixelwise_global_acc > 0.9:
+                        self.SDC += 1
+                    elif pixelwise_global_acc < 0.9:
+                        self.Critical += 1
 
+                    if pixelwise_global_acc < 1:
+                        
+                        FaultID=faulty_file_report.split("/")[-1].split(".")[0]
 
+                        df = pd.DataFrame({'FaultID':FaultID,
+                                            'imID': index,
+                                            'label_idx':idx,
+                                            'iou_per_img': pixelwise_global_acc,
+                                            'label_acc': class_prec[idx].item(),
+                                            'class_iou': iou_score[idx].item()},index=[0])  
+                        
+                        self.Full_report = pd.concat([self.Full_report,df],ignore_index=True)
+                
 
             
         file_name=faulty_file_report.split('/')[-1].split('.')[0]
