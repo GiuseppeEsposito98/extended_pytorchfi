@@ -5,6 +5,7 @@ import math
 from collections import defaultdict
 import numpy as np
 from torchmetrics.detection.mean_ap import MeanAveragePrecision
+from torchmetrics import F1Score
 
 def random_value(min_val: int = -1, max_val: int = 1):
     return random.uniform(min_val, max_val)
@@ -208,7 +209,6 @@ class SegEvaluator(object):
         with torch.no_grad():
             k = (a >= 0) & (a < n)
             inds = n * a[k].to(torch.int64) + b[k]
-            print(f'inds: {inds}')
             self.mat += torch.bincount(inds, minlength=n**2).reshape(n, n)
 
     def reset(self):
@@ -219,7 +219,10 @@ class SegEvaluator(object):
         acc_global = torch.diag(h).sum() / h.sum() * 100.0
         acc = torch.diag(h) / h.sum(1) * 100.0
         iu = torch.diag(h) / (h.sum(1) + h.sum(0) - torch.diag(h)) * 100.0
-        return acc_global, acc, iu
+        print(f'acc_global: {acc_global}')
+        average_f1_score, f1_score = self.calulate_f1()
+        print(f'f1_score: {f1_score}')
+        return acc_global, acc, iu, average_f1_score, f1_score
 
     def reduce_from_all_processes(self):
         if not torch.distributed.is_available():
@@ -235,3 +238,27 @@ class SegEvaluator(object):
             iu.mean().item(), ['{:.1f}'.format(i) for i in iu.tolist()],
             acc_global.item(), ['{:.1f}'.format(i) for i in acc.tolist()]
         )
+    
+    def calulate_f1(self):
+        precision = torch.zeros(self.num_classes)
+        recall = torch.zeros(self.num_classes)
+        f1_score = torch.zeros(self.num_classes)
+        if self.mat is not None:
+            for i in range(self.num_classes):
+                TP = self.mat[i, i]
+                FP = self.mat[:, i].sum() - TP
+                FN = self.mat[i, :].sum() - TP
+                
+                precision[i] = TP / (TP + FP)
+                recall[i] = TP / (TP + FN)
+                f1_score[i] = 2 * (precision[i] * recall[i]) / (precision[i] + recall[i])
+
+            # Optionally, you can calculate the average F1 score across all classes
+            # average_f1_score = f1_score.mean()
+            nan_indices = torch.nonzero(~torch.isnan(f1_score))
+            f1 = 0
+            for idx in nan_indices:
+                f1+=f1_score[idx]
+            average_f1_score = f1/len(nan_indices)
+            # print(f'average_f1_score: {average_f1_score}')
+            return average_f1_score, f1_score
