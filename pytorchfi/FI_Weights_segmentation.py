@@ -18,8 +18,9 @@ import pytorchfi.core as core
 from pytorchfi.util import random_value
 from pytorchfi.core import *
 from pytorchfi.neuron_error_models import *
-from torchdistill.eval.coco import SegEvaluator
+from pytorchfi.util import SegEvaluator
 from torchmetrics import JaccardIndex
+import torchmetrics.functional as tmf
 
 logger=logging.getLogger("Fault_injection") 
 logger.setLevel(logging.DEBUG) 
@@ -699,66 +700,37 @@ class FI_report_classifier(object):
         self._layer=0    
         self._num_images=0
         self._num_classes=0
-        self._gold_acc1=torch.tensor([0.0])
-        self._gold_acck=torch.tensor([0.0])
-        self._faul_acc1=torch.tensor([0.0])
-        self._faul_acck=torch.tensor([0.0])
+#         global_pixel_acc
+# global_f1
+        self._gold_acc=torch.tensor([0.0])
+        self._gold_f1=torch.tensor([0.0])
+        self._faul_acc=torch.tensor([0.0])
+        self._faul_f1=torch.tensor([0.0])
         
         self._report_dictionary={}
         self._FI_results_dictionary={}
         self._fault_dictionary={}        
-        self.Top1_faulty_code=0
-        self.Topk_faulty_code=0
-        self.T1_SDC=0
-        self.T1_Masked=0
-        self.T1_Critical=0
+        self.faulty_code=0
 
-        self.T5_SDC=0
-        self.T5_Masked=0
-        self.T5_Critical=0
+        self.SDC=0
+        self.Masked=0
+        self.Critical=0
 
         self.Golden={}
-        self.SDC_top1=0
-        self.SDC_top5=0
-        self.Critical_top1=0
-        self.Critical_top5=0
-        self.Masked_top1=0
-        self.Masked_top5=0
-        self.Gacc1=0
-        self.Gacc5=0
-        self.Facc1=0
-        self.Facc5=0
 
         self.GACC1=torch.tensor([0.0])
-        self.GACCk=torch.tensor([0.0])
+        self.Gf1=torch.tensor([0.0])
         self.FACC1=torch.tensor([0.0])
-        self.FACCk=torch.tensor([0.0])
+        self.Ff1=torch.tensor([0.0])
         self.Full_report=pd.DataFrame()
 
-        self.Accm_SDC_top1=0
-        self.Accm_SDC_top5=0
-        self.Accm_Critical_top1=0
-        self.Accm_Critical_top5=0
-        self.Accm_Masked_top1=0
-        self.Accm_Masked_top5=0
+
         self.log_path=log_pah
         self.report_summary={}
         self._fsim_report=pd.DataFrame()
         self.check_point={
             "fault_idx":0,
             "top1": {
-                "fault":{
-                        "Critical":0,
-                        "SDC":0,
-                        "Masked":0
-                        },
-                "images":{
-                        "Critical":0,
-                        "SDC":0,
-                        "Masked":0
-                        }
-            },
-            "topk": {
                 "fault":{
                         "Critical":0,
                         "SDC":0,
@@ -787,11 +759,9 @@ class FI_report_classifier(object):
                 self.check_point=chpt
 
         if not os.path.exists(os.path.join(self.log_path,self.fault_report_filename)):
-            self._fsim_report=pd.DataFrame(columns=['gold_ACC@1','gold_ACC@k',
-                                        'img_Top1_Crit','img_Top1_SDC','img_Top1_Masked',
-                                        'img_Topk_Crit','img_Topk_SDC','img_Topk_Masked',
-                                        'fault_ACC@1','fault_ACC@k','Class_Top1','Class_Topk',
-                                        'goldenf1_1', 'goldenf1_k', 'fault_f1@1', 'fault_f1@k'])  
+            self._fsim_report=pd.DataFrame(columns=['global_gold_acc','global_gold_f1@1', 
+                                                    'global_fault_acc','global_fault_f1@1',
+                                        'mask_Crit','mask_SDC','mask_Masked'])  
             self._fsim_report.to_csv(os.path.join(self.log_path,self.fault_report_filename),sep=',')
         else:
             self._fsim_report = pd.read_csv(os.path.join(self.log_path,self.fault_report_filename),index_col=[0])           
@@ -818,90 +788,67 @@ class FI_report_classifier(object):
 
 
     def reset_counter(self):
+        self._gold_acc=torch.tensor([0.0])
+        self._gold_f1=torch.tensor([0.0])
+        self._faul_acc=torch.tensor([0.0])
+        self._faul_f1=torch.tensor([0.0])
+
+        self.SDC=0
+        self.Masked=0
+        self.Critical=0
+
         self.GACC1=torch.tensor([0.0])
-        self.GACCk=torch.tensor([0.0])
+        self.Gf1=torch.tensor([0.0])
         self.FACC1=torch.tensor([0.0])
-        self.FACCk=torch.tensor([0.0])
-        self.T1_SDC=0
-        self.T1_Masked=0
-        self.T1_Critical=0
-        self.T5_SDC=0
-        self.T5_Masked=0
-        self.T5_Critical=0
-        self._gold_acc1=torch.tensor([0.0])
-        self._gold_acck=torch.tensor([0.0])
-        self._faul_acc1=torch.tensor([0.0])
-        self._faul_acck=torch.tensor([0.0])
+        self.Ff1=torch.tensor([0.0])
+
         self._num_images=0     
 
     def _update_chpt_info(self):    
-        self.Top1_faulty_code=0 # 0: Masked; 1: SDC; 2; Critical; 3=crash
-        self.Topk_faulty_code=0 # 0: Masked; 1: SDC; 2; Critical; 3=crash
+        self.faulty_code=0 # 0: Masked; 1: SDC; 2; Critical; 3=crash
         self.check_point["fault_idx"]+=1 
 
-        self.check_point["top1"]["images"]["Critical"]+=self.T1_Critical
-        self.check_point["top1"]["images"]["SDC"]+=self.T1_SDC
-        self.check_point["top1"]["images"]["Masked"]+=self.T1_Masked
-        self.check_point["topk"]["images"]["Critical"]+=self.T5_Critical
-        self.check_point["topk"]["images"]["SDC"]+=self.T5_SDC
-        self.check_point["topk"]["images"]["Masked"]+=self.T5_Masked
+        self.check_point["top1"]["images"]["Critical"]+=self.Critical
+        self.check_point["top1"]["images"]["SDC"]+=self.SDC
+        self.check_point["top1"]["images"]["Masked"]+=self.Masked
 
             # break
-        if(self.T1_Critical!=0):
-            # self.Critical_top1+=1
+        if(self.Critical!=0):
+            # self.Critical+=1
             self.check_point["top1"]["fault"]["Critical"]+=1
-            self.Top1_faulty_code=2
-        elif self.T1_SDC !=0:
-            # self.SDC_top1+=1
+            self.faulty_code=2
+        elif self.SDC !=0:
+            # self.SDC+=1
             self.check_point["top1"]["fault"]["SDC"]+=1
-            self.Top1_faulty_code=1
+            self.faulty_code=1
         else:
-            # self.Masked_top1+=1
+            # self.Masked+=1
             self.check_point["top1"]["fault"]["Masked"]+=1
-            self.Top1_faulty_code=0
+            self.faulty_code=0
 
-        if(self.T5_Critical!=0):
-            # self.Critical_top5+=1
-            self.check_point["topk"]["fault"]["Critical"]+=1
-            self.Topk_faulty_code=2
-        elif self.T5_SDC !=0:
-            # self.SDC_top5+=1
-            self.check_point["topk"]["fault"]["SDC"]+=1
-            self.Topk_faulty_code=1
-        else:
-            # self.Masked_top5+=1  
-            self.check_point["topk"]["fault"]["Masked"]+=1
-            self.Topk_faulty_code=0
-    
-        self.GACC1=self._gold_acc1*100/self._num_images
-        self.GACCk=self._gold_acck*100/self._num_images
-        self.FACC1=self._faul_acc1*100/self._num_images
-        self.FACCk=self._faul_acck*100/self._num_images
+        # print(f'self._gold_acc: {self._gold_acc}')
+        # print(f'self._num_images: {self._num_images}')
+        # print(f'self._gold_f1: {self._gold_f1}')
+
+        self.GACC1=self._gold_acc/self._num_images
+        self.Gf1=self._gold_f1/self._num_images
+        self.FACC1=self._faul_acc/self._num_images
+        self.Ff1=self._faul_f1/self._num_images
+
+        # print(f'self.Gf1: {self.Gf1}')
 
 
     def update_fault_parse_results(self):
-        self._fault_dictionary['gold_ACC@1'] = self.GACC1.item()
-        self._fault_dictionary['gold_ACC@k'] = self.GACCk.item()
-        self._fault_dictionary['img_Top1_Crit'] = self.T1_Critical
-        self._fault_dictionary['img_Top1_SDC'] = self.T1_SDC
-        self._fault_dictionary['img_Top1_Masked'] = self.T1_Masked
-        self._fault_dictionary['fault_ACC@1'] = self.FACC1.item()
-        self._fault_dictionary['img_Topk_Crit'] = self.T5_Critical
-        self._fault_dictionary['img_Topk_SDC'] = self.T5_SDC
-        self._fault_dictionary['img_Topk_Masked'] = self.T5_Masked
-        self._fault_dictionary['fault_ACC@k'] = self.FACCk.item()
-        self._fault_dictionary['Class_Top1'] = self.Top1_faulty_code
-        self._fault_dictionary['Class_Topk'] = self.Topk_faulty_code
-    
-    def set_f1_values(self, best_f1, k_f1, header):
-        # logger.info(header)
-        if header == 'Golden':
-            self._fault_dictionary['goldenf1_1'] = best_f1.item()*100 
-            self._fault_dictionary['goldenf1_k'] = k_f1.item()*100
-        elif header == 'FSIM':
-            # logger.info(f'best_f1: {best_f1}')
-            self._fault_dictionary['fault_f1@1'] = best_f1.item()*100
-            self._fault_dictionary['fault_f1@k'] = k_f1.item()*100
+        self._fault_dictionary['global_gold_acc'] = self.GACC1.item()
+        self._fault_dictionary['global_gold_f1@1'] = self.Gf1.item()
+        self._fault_dictionary['global_fault_acc'] = self.FACC1.item()
+        self._fault_dictionary['global_fault_f1@1'] = self.Ff1.item()
+        self._fault_dictionary['mask_Masked']=self.Masked
+        self._fault_dictionary['mask_SDC']=self.SDC
+        self._fault_dictionary['mask_Crit']=self.Critical
+#     mask_Crit
+# mask_SDC
+# mask_Masked
 
 
     def create_report(self,file_name):
@@ -955,13 +902,20 @@ class FI_report_classifier(object):
         self.Full_report = pd.DataFrame()
 
         for index in self._golden_dictionary:
+            self._num_images+=1
             self.Golden=self._golden_dictionary[index]
             G_pred=torch.tensor(self.Golden['pred_mask'],requires_grad=False)
             G_target=torch.tensor(self.Golden['target_mask'],requires_grad=False)
+            g_flattened_prediction = G_pred.flatten()
+            g_flattened_target = G_target.flatten()
 
             seg_evaluator = SegEvaluator(self._num_classes)
-            seg_evaluator.update(G_target, G_pred)
-            print(f'golden.compute(): {seg_evaluator.compute()}')
+            seg_evaluator.update(g_flattened_target, g_flattened_prediction)
+            # print(f'golden.compute(): {seg_evaluator.compute()}')
+            g_pixelwise_global_acc, class_prec, iou_score, g_average_f1, f1_per_class = seg_evaluator.compute()
+            # print(f'g_average_f1: {g_average_f1}')
+            self._gold_acc+=g_pixelwise_global_acc
+            self._gold_f1+=g_average_f1
 
             if index in self._FI_dictionary:
 
@@ -972,30 +926,41 @@ class FI_report_classifier(object):
                 F_pred=torch.tensor(self.Faulty['pred_mask'],requires_grad=False)
                 F_target=torch.tensor(self.Faulty['target_mask'],requires_grad=False)
 
-                seg_evaluator.update(G_pred, F_pred)
-                print(f'faulty.compute(): {seg_evaluator.compute()}')
-                pixelwise_global_acc, class_prec, iou_score = seg_evaluator.compute()
 
-                nan_indices = torch.nonzero(torch.isnan(class_prec))
+
+                f_flattened_prediction = F_pred.flatten()
+
+                seg_evaluator.update(g_flattened_prediction, f_flattened_prediction)
+
+                # print(f'faulty.compute(): {seg_evaluator.compute()}')
+                f_pixelwise_global_acc, class_prec, iou_score, f_average_f1, f1_per_class = seg_evaluator.compute()
+                self._faul_acc += f_pixelwise_global_acc
+                self._faul_f1 += f_average_f1
+
+                # print(f'self._faul_f1: {self._faul_f1}')
+
+
+                nan_indices = torch.nonzero(~torch.isnan(class_prec))
 
                 for idx in nan_indices:
                     
-                    if pixelwise_global_acc == 1:
+                    if f_pixelwise_global_acc == 100:
                         self.Masked += 1
-                    elif pixelwise_global_acc < 1 and pixelwise_global_acc > 0.9:
+                    elif f_pixelwise_global_acc < 100 and f_pixelwise_global_acc > 90:
                         self.SDC += 1
-                    elif pixelwise_global_acc < 0.9:
+                    elif f_pixelwise_global_acc < 90:
                         self.Critical += 1
 
-                    if pixelwise_global_acc < 1:
+                    if f_pixelwise_global_acc < 100:
                         
                         FaultID=faulty_file_report.split("/")[-1].split(".")[0]
 
                         df = pd.DataFrame({'FaultID':FaultID,
                                             'imID': index,
-                                            'label_idx':idx,
-                                            'iou_per_img': pixelwise_global_acc,
+                                            'label_idx':idx.item(),
+                                            'iou_per_img': f_pixelwise_global_acc.item(),
                                             'label_acc': class_prec[idx].item(),
+                                            'label_f1': f1_per_class[idx].item()*100,
                                             'class_iou': iou_score[idx].item()},index=[0])  
                         
                         self.Full_report = pd.concat([self.Full_report,df],ignore_index=True)
