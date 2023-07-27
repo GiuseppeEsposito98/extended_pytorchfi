@@ -267,7 +267,7 @@ def weight_distribution(pfi_model:FaultInjection, **kwargs):
 
 def generate_fault_list_sbfm(path,pfi_model:FaultInjection, **kwargs):
     T=1.64485362695147  #confidence level
-    E=0.05 # 0.01             #error margin
+    E=0.020 # 0.01             #error margin
     P=0.5               # Perrror
     MSB_inection=31
     LSB_injection=20
@@ -1022,13 +1022,13 @@ class FI_report_classifier(object):
                     remaining_labs = torch.tensor(remaining_labs)
                     remaining_confs = torch.tensor(remaining_confs)
 
-                    print(f'fault_bbs: {fault_bbs}')
-                    print(f'fault_labs: {fault_labs}')
-                    print(f'fault_confs: {fault_confs}')
+                    # print(f'fault_bbs: {fault_bbs}')
+                    # print(f'fault_labs: {fault_labs}')
+                    # print(f'fault_confs: {fault_confs}')
 
-                    print(f'remaining_bbs: {remaining_bbs}')
-                    print(f'remaining_labs: {remaining_labs}')
-                    print(f'remaining_confs: {remaining_confs}')
+                    # print(f'remaining_bbs: {remaining_bbs}')
+                    # print(f'remaining_labs: {remaining_labs}')
+                    # print(f'remaining_confs: {remaining_confs}')
 
 
                     f_count = fault_labs.nelement()
@@ -1039,7 +1039,7 @@ class FI_report_classifier(object):
                         G_score = G_pred_scores[g_idx]
                         G_label = G_pred_labels[g_idx].item()
                         bb = G_pred_bb[g_idx] 
-                        print(f'len(fault_bbs): {len(fault_bbs)}')
+                        # print(f'len(fault_bbs): {len(fault_bbs)}')
                         if len(fault_bbs) > 0:
                                 
                             f_bb_counter += 1

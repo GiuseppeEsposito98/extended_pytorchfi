@@ -265,7 +265,7 @@ def weight_distribution(pfi_model:FaultInjection, **kwargs):
 
 def generate_fault_list_sbfm(path,pfi_model:FaultInjection, **kwargs):
     T=1.64485362695147  #confidence level
-    E=0.01              #error margin
+    E=0.020             #error margin
     P=0.5               # Perrror
     MSB_inection=31
     LSB_injection=20
@@ -303,7 +303,7 @@ def generate_fault_list_sbfm(path,pfi_model:FaultInjection, **kwargs):
 
             # print(N)
             n=int(N/(1+(E**2)*(N-1)/((T**2)*P*(1-P))))
-            #print(n)                
+            print(f'********** {n}')                
             i=0
             while i<n:
                 if kK_param != None:
