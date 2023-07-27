@@ -262,3 +262,14 @@ class SegEvaluator(object):
             average_f1_score = f1/len(nan_indices)
             # print(f'average_f1_score: {average_f1_score}')
             return average_f1_score, f1_score
+    
+    def pixel_per_class(self, a:torch.Tensor):
+        # Get unique elements and their counts
+        unique_elements, counts = torch.unique(a, return_counts=True)
+
+        # Create a dictionary to store the results
+        result_dict = {}
+
+        # Populate the dictionary with the unique elements and their counts
+        for element, count in zip(unique_elements, counts):
+            result_dict[element.item()] = count.item()

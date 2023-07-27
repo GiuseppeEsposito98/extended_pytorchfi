@@ -912,7 +912,8 @@ class FI_report_classifier(object):
             seg_evaluator = SegEvaluator(self._num_classes)
             seg_evaluator.update(g_flattened_target, g_flattened_prediction)
             # print(f'golden.compute(): {seg_evaluator.compute()}')
-            g_pixelwise_global_acc, class_prec, iou_score, g_average_f1, f1_per_class = seg_evaluator.compute()
+            g_pixelwise_global_acc, g_class_prec, g_iou_score, g_average_f1, g_f1_per_class = seg_evaluator.compute()
+            g_pixels_couters = seg_evaluator.pixel_per_class(G_pred)
             # print(f'g_average_f1: {g_average_f1}')
             self._gold_acc+=g_pixelwise_global_acc
             self._gold_f1+=g_average_f1
@@ -933,35 +934,39 @@ class FI_report_classifier(object):
                 seg_evaluator.update(g_flattened_prediction, f_flattened_prediction)
 
                 # print(f'faulty.compute(): {seg_evaluator.compute()}')
-                f_pixelwise_global_acc, class_prec, iou_score, f_average_f1, f1_per_class = seg_evaluator.compute()
+                f_pixelwise_global_acc, f_class_prec, f_iou_score, f_average_f1, f_f1_per_class = seg_evaluator.compute()
+                f_pixels_couters = seg_evaluator.pixel_per_class(F_pred)
                 self._faul_acc += f_pixelwise_global_acc
                 self._faul_f1 += f_average_f1
 
                 # print(f'self._faul_f1: {self._faul_f1}')
+                if f_pixelwise_global_acc == 100:
+                        self.Masked += 1
+                elif f_pixelwise_global_acc < 100 and f_pixelwise_global_acc > 90:
+                    self.SDC += 1
+                elif f_pixelwise_global_acc < 90:
+                    self.Critical += 1
 
-
-                nan_indices = torch.nonzero(~torch.isnan(class_prec))
+                nan_indices = torch.nonzero(~torch.isnan(f_class_prec))
 
                 for idx in nan_indices:
-                    
-                    if f_pixelwise_global_acc == 100:
-                        self.Masked += 1
-                    elif f_pixelwise_global_acc < 100 and f_pixelwise_global_acc > 90:
-                        self.SDC += 1
-                    elif f_pixelwise_global_acc < 90:
-                        self.Critical += 1
-
                     if f_pixelwise_global_acc < 100:
-                        
+                        g_class_pixels = g_pixels_couters[idx]
+                        f_class_pixels = f_pixels_couters[idx]
                         FaultID=faulty_file_report.split("/")[-1].split(".")[0]
 
                         df = pd.DataFrame({'FaultID':FaultID,
                                             'imID': index,
                                             'label_idx':idx.item(),
                                             'iou_per_img': f_pixelwise_global_acc.item(),
-                                            'label_acc': class_prec[idx].item(),
-                                            'label_f1': f1_per_class[idx].item()*100,
-                                            'class_iou': iou_score[idx].item()},index=[0])  
+                                            'g_label_acc': g_class_prec[idx].item(),
+                                            'f_label_acc': f_class_prec[idx].item(),
+                                            'g_label_f1': g_f1_per_class[idx].item()*100,
+                                            'f_label_f1': f_f1_per_class[idx].item()*100,
+                                            'g_class_iou': g_iou_score[idx].item(),
+                                            'f_class_iou': f_iou_score[idx].item(),
+                                            'g_label_area': g_class_pixels,
+                                            'f_label_area': f_class_pixels},index=[0])  
                         
                         self.Full_report = pd.concat([self.Full_report,df],ignore_index=True)
                 
