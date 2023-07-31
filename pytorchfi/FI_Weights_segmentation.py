@@ -941,7 +941,7 @@ class FI_report_classifier(object):
 
                 # print(f'self._faul_f1: {self._faul_f1}')
                 if f_pixelwise_global_acc == 100:
-                        self.Masked += 1
+                    self.Masked += 1
                 elif f_pixelwise_global_acc < 100 and f_pixelwise_global_acc > 90:
                     self.SDC += 1
                 elif f_pixelwise_global_acc < 90:
