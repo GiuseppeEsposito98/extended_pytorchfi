@@ -846,9 +846,7 @@ class FI_report_classifier(object):
         self._fault_dictionary['mask_Masked']=self.Masked
         self._fault_dictionary['mask_SDC']=self.SDC
         self._fault_dictionary['mask_Crit']=self.Critical
-#     mask_Crit
-# mask_SDC
-# mask_Masked
+
 
 
     def create_report(self,file_name):
@@ -947,28 +945,29 @@ class FI_report_classifier(object):
                 elif f_pixelwise_global_acc < 90:
                     self.Critical += 1
 
-                nan_indices = torch.nonzero(~torch.isnan(f_class_prec))
+                non_nan_indices = torch.nonzero(~torch.isnan(f_pixels_couters))
+                # print(f'non_nan_indices: {non_nan_indices}')
+                # print(f'f_pixels_couters: {f_pixels_couters}')
+                if f_pixelwise_global_acc < 100:
+                    for idx in non_nan_indices:
+                            g_class_pixels = g_pixels_couters[idx.item()]
+                            f_class_pixels = f_pixels_couters[idx.item()]
+                            FaultID=faulty_file_report.split("/")[-1].split(".")[0]
 
-                for idx in nan_indices:
-                    if f_pixelwise_global_acc < 100:
-                        g_class_pixels = g_pixels_couters[idx]
-                        f_class_pixels = f_pixels_couters[idx]
-                        FaultID=faulty_file_report.split("/")[-1].split(".")[0]
-
-                        df = pd.DataFrame({'FaultID':FaultID,
-                                            'imID': index,
-                                            'label_idx':idx.item(),
-                                            'iou_per_img': f_pixelwise_global_acc.item(),
-                                            'g_label_acc': g_class_prec[idx].item(),
-                                            'f_label_acc': f_class_prec[idx].item(),
-                                            'g_label_f1': g_f1_per_class[idx].item()*100,
-                                            'f_label_f1': f_f1_per_class[idx].item()*100,
-                                            'g_class_iou': g_iou_score[idx].item(),
-                                            'f_class_iou': f_iou_score[idx].item(),
-                                            'g_label_area': g_class_pixels,
-                                            'f_label_area': f_class_pixels},index=[0])  
-                        
-                        self.Full_report = pd.concat([self.Full_report,df],ignore_index=True)
+                            df = pd.DataFrame({'FaultID':FaultID,
+                                                'imID': index,
+                                                'label_idx':idx.item(),
+                                                'iou_per_img': f_pixelwise_global_acc.item(),
+                                                'g_label_acc': g_class_prec[idx].item(),
+                                                'f_label_acc': f_class_prec[idx].item(),
+                                                'g_label_f1': g_f1_per_class[idx].item()*100,
+                                                'f_label_f1': f_f1_per_class[idx].item()*100,
+                                                'g_class_iou': g_iou_score[idx].item(),
+                                                'f_class_iou': f_iou_score[idx].item(),
+                                                'g_label_area': g_class_pixels.item(),
+                                                'f_label_area': f_class_pixels.item()},index=[0])  
+                            
+                            self.Full_report = pd.concat([self.Full_report,df],ignore_index=True)
                 
 
             

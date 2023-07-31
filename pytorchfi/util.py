@@ -273,3 +273,4 @@ class SegEvaluator(object):
         # Populate the dictionary with the unique elements and their counts
         for element, count in zip(unique_elements, counts):
             result_dict[element.item()] = count.item()
+        return counts
