@@ -937,19 +937,25 @@ class FI_report_classifier(object):
                 self._faul_acc += f_pixelwise_global_acc
                 self._faul_f1 += f_average_f1
 
+                g_non_nan_indices = torch.nonzero(~torch.isnan(g_class_prec))
+                f_non_nan_indices = torch.nonzero(~torch.isnan(f_class_prec))
+                # print(f'same? {torch.equal(f_non_nan_indices,g_non_nan_indices)}')
+                # print(f'f_non_nan_indices: {f_non_nan_indices}')
+                all_indices = torch.unique(torch.cat((g_non_nan_indices, f_non_nan_indices), dim=0))
+                
                 # print(f'self._faul_f1: {self._faul_f1}')
                 if f_pixelwise_global_acc == 100:
                     self.Masked += 1
                 elif f_pixelwise_global_acc < 100 and f_pixelwise_global_acc > 90:
-                    self.SDC += 1
+                    if torch.equal(f_non_nan_indices,g_non_nan_indices):
+                        self.SDC += 1
+                    else: 
+                        self.Critical += 1
                 elif f_pixelwise_global_acc < 90:
                     self.Critical += 1
 
-                g_non_nan_indices = torch.nonzero(~torch.isnan(g_class_prec))
-                f_non_nan_indices = torch.nonzero(~torch.isnan(f_class_prec))
-                all_indices = torch.unique(torch.cat((g_non_nan_indices, f_non_nan_indices), dim=0))
-                print(f'all_indices: {all_indices}')
-                print(all_indices)
+                # print(f'all_indices: {all_indices}')
+                # print(all_indices)
                 # print(f'non_nan_indices: {non_nan_indices}')
                 # print(f'f_pixels_couters: {f_pixels_couters}')
                 if f_pixelwise_global_acc < 100:
@@ -961,24 +967,29 @@ class FI_report_classifier(object):
                         g_single_class_iou = None
                         # print(f'_idx: {_idx in g_non_nan_indices}')
                         if _idx in g_non_nan_indices:
-                            g_class_pixels = g_pixels_couters[_idx]
+                            # print(f'_idx: {_idx}') 
                             g_single_class_prec = g_class_prec[_idx].item()
                             g_class_f1 = g_f1_per_class[_idx].item()*100
                             g_single_class_iou = g_iou_score[_idx].item()
+                            # print(f'g_pixels_couters: {g_pixels_couters.keys()}')
+                            if _idx in list(g_pixels_couters.keys()):
+                                g_class_pixels = g_pixels_couters[_idx]
                         
                         f_class_pixels = None
                         f_single_class_prec = None
                         f_class_f1 = None
                         f_single_class_iou = None
-                        print(f'_idx: {_idx in g_non_nan_indices}')
-                        print(f'_idx: {_idx in f_non_nan_indices}')
+                        # print(f'_idx: {_idx in g_non_nan_indices}')
+                        # print(f'_idx: {_idx in f_non_nan_indices}')
                         if _idx in f_non_nan_indices:
-                            print(f'_idx: {_idx}')
-                            f_class_pixels = f_pixels_couters[_idx]
+                            # print(f'_idx: {_idx}') 
                             f_single_class_prec = f_class_prec[_idx].item()
                             f_class_f1 = f_f1_per_class[_idx].item()*100
                             f_single_class_iou = f_iou_score[_idx].item()
-                            print(f'f_class_f1: {f_class_f1}')
+                            # print(f'f_class_f1: {f_class_f1}')
+                            # print(f'f_pixels_couters: {f_pixels_couters.keys()}')
+                            if _idx in list(f_pixels_couters.keys()):
+                                f_class_pixels = f_pixels_couters[_idx]
 
 
 
@@ -987,7 +998,7 @@ class FI_report_classifier(object):
 
                         df = pd.DataFrame({'FaultID':FaultID,
                                             'imID': index,
-                                            'label_idx':idx.item(),
+                                            'label_idx':_idx,
                                             'iou_per_img': f_pixelwise_global_acc.item(),
                                             'g_label_acc': g_single_class_prec,
                                             'f_label_acc': f_single_class_prec,
