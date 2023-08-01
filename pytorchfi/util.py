@@ -219,9 +219,9 @@ class SegEvaluator(object):
         acc_global = torch.diag(h).sum() / h.sum() * 100.0
         acc = torch.diag(h) / h.sum(1) * 100.0
         iu = torch.diag(h) / (h.sum(1) + h.sum(0) - torch.diag(h)) * 100.0
-        print(f'acc_global: {acc_global}')
+        # print(f'acc_global: {acc_global}')
         average_f1_score, f1_score = self.calulate_f1()
-        print(f'f1_score: {f1_score}')
+        # print(f'f1_score: {f1_score}')
         return acc_global, acc, iu, average_f1_score, f1_score
 
     def reduce_from_all_processes(self):
@@ -273,4 +273,4 @@ class SegEvaluator(object):
         # Populate the dictionary with the unique elements and their counts
         for element, count in zip(unique_elements, counts):
             result_dict[element.item()] = count.item()
-        return counts
+        return result_dict

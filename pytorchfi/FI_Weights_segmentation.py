@@ -945,29 +945,60 @@ class FI_report_classifier(object):
                 elif f_pixelwise_global_acc < 90:
                     self.Critical += 1
 
-                non_nan_indices = torch.nonzero(~torch.isnan(f_pixels_couters))
+                g_non_nan_indices = torch.nonzero(~torch.isnan(g_class_prec))
+                f_non_nan_indices = torch.nonzero(~torch.isnan(f_class_prec))
+                all_indices = torch.unique(torch.cat((g_non_nan_indices, f_non_nan_indices), dim=0))
+                print(f'all_indices: {all_indices}')
+                print(all_indices)
                 # print(f'non_nan_indices: {non_nan_indices}')
                 # print(f'f_pixels_couters: {f_pixels_couters}')
                 if f_pixelwise_global_acc < 100:
-                    for idx in non_nan_indices:
-                            g_class_pixels = g_pixels_couters[idx.item()]
-                            f_class_pixels = f_pixels_couters[idx.item()]
-                            FaultID=faulty_file_report.split("/")[-1].split(".")[0]
+                    for idx in all_indices:
+                        _idx = idx.item()
+                        g_class_pixels = None
+                        g_single_class_prec = None
+                        g_class_f1 = None
+                        g_single_class_iou = None
+                        # print(f'_idx: {_idx in g_non_nan_indices}')
+                        if _idx in g_non_nan_indices:
+                            g_class_pixels = g_pixels_couters[_idx]
+                            g_single_class_prec = g_class_prec[_idx].item()
+                            g_class_f1 = g_f1_per_class[_idx].item()*100
+                            g_single_class_iou = g_iou_score[_idx].item()
+                        
+                        f_class_pixels = None
+                        f_single_class_prec = None
+                        f_class_f1 = None
+                        f_single_class_iou = None
+                        print(f'_idx: {_idx in g_non_nan_indices}')
+                        print(f'_idx: {_idx in f_non_nan_indices}')
+                        if _idx in f_non_nan_indices:
+                            print(f'_idx: {_idx}')
+                            f_class_pixels = f_pixels_couters[_idx]
+                            f_single_class_prec = f_class_prec[_idx].item()
+                            f_class_f1 = f_f1_per_class[_idx].item()*100
+                            f_single_class_iou = f_iou_score[_idx].item()
+                            print(f'f_class_f1: {f_class_f1}')
 
-                            df = pd.DataFrame({'FaultID':FaultID,
-                                                'imID': index,
-                                                'label_idx':idx.item(),
-                                                'iou_per_img': f_pixelwise_global_acc.item(),
-                                                'g_label_acc': g_class_prec[idx].item(),
-                                                'f_label_acc': f_class_prec[idx].item(),
-                                                'g_label_f1': g_f1_per_class[idx].item()*100,
-                                                'f_label_f1': f_f1_per_class[idx].item()*100,
-                                                'g_class_iou': g_iou_score[idx].item(),
-                                                'f_class_iou': f_iou_score[idx].item(),
-                                                'g_label_area': g_class_pixels.item(),
-                                                'f_label_area': f_class_pixels.item()},index=[0])  
+
+
                             
-                            self.Full_report = pd.concat([self.Full_report,df],ignore_index=True)
+                        FaultID=faulty_file_report.split("/")[-1].split(".")[0]
+
+                        df = pd.DataFrame({'FaultID':FaultID,
+                                            'imID': index,
+                                            'label_idx':idx.item(),
+                                            'iou_per_img': f_pixelwise_global_acc.item(),
+                                            'g_label_acc': g_single_class_prec,
+                                            'f_label_acc': f_single_class_prec,
+                                            'g_label_f1': g_class_f1,
+                                            'f_label_f1': f_class_f1,
+                                            'g_class_iou': g_single_class_iou,
+                                            'f_class_iou': f_single_class_iou,
+                                            'g_label_area': g_class_pixels,
+                                            'f_label_area': f_class_pixels},index=[0])  
+                        
+                        self.Full_report = pd.concat([self.Full_report,df],ignore_index=True)
                 
 
             
