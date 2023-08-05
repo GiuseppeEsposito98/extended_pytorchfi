@@ -257,9 +257,11 @@ class SegEvaluator(object):
             # average_f1_score = f1_score.mean()
             nan_indices = torch.nonzero(~torch.isnan(f1_score))
             f1 = 0
-            for idx in nan_indices:
-                f1+=f1_score[idx]
-            average_f1_score = f1/len(nan_indices)
+            average_f1_score = 0
+            if len(nan_indices) > 0:
+                for idx in nan_indices:
+                    f1+=f1_score[idx]
+                average_f1_score = f1/len(nan_indices)
             # print(f'average_f1_score: {average_f1_score}')
             return average_f1_score, f1_score
     
