@@ -7,6 +7,7 @@ import pandas as pd
 import math
 from collections import defaultdict
 from copy import deepcopy
+from typing import *
 
 import matplotlib.pyplot as plt
 
@@ -22,6 +23,10 @@ from pytorchfi.util import random_value, relative_iou, setup_dicts, compute_iou,
 from pytorchfi.core import *
 from pytorchfi.neuron_error_models import *
 from torchmetrics.detection.mean_ap import MeanAveragePrecision
+
+from torch.utils.data import Dataset
+
+T_co = TypeVar('T_co', covariant=True)
 
 
 logger=logging.getLogger("Fault_injection") 
@@ -1522,6 +1527,7 @@ class FI_framework(object):
 class DatasetSampling(object):
     def __init__(self,dataset,num_images):        
         self.length=len(dataset)
+        self.dataset=dataset
         self.num_images=num_images
         self.indices=[]
 
@@ -1532,6 +1538,30 @@ class DatasetSampling(object):
                 self.indices.append(i)
         return(self.indices)
 
+    def __len__(self):
+        return len(self.indices)
+
+    
+class DatasetSamplingByShape(object):
+    def __init__(self,dataset,shape:torch.Size, max_idx=None):        
+        self.dataset = dataset
+        self.shape = shape
+        self.indices=list()
+        if max_idx == None:
+            self.max_idx = len(dataset)
+        else:
+            self.max_idx=max_idx
+        # self.max_idx = len(dataset) if max_idx == None else max_idx
+    
+    def listindex_by_shape(self):
+        self.indices=[]
+        for idx, data in enumerate(self.dataset):
+            if data[0].shape == self.shape:
+                self.indices.append(idx)
+            if len(self.indices) > self.max_idx:
+                break
+        return(self.indices)
+    
     def __len__(self):
         return len(self.indices)
     
@@ -1613,4 +1643,3 @@ class FI_manager(object):
     
     def terminate_fsim(self):
         pass
-    
