@@ -1075,22 +1075,22 @@ class FI_report_classifier(object):
 
                                 if f_candidate_lab == G_label:
                                     if conf_ratio == 1:
-                                        print('high score | same label | high confidence')
+                                        # print('high score | same label | high confidence')
                                         self.Masked += 1
                                     else: 
-                                        print('high score | same label | low confidence')
+                                        # print('high score | same label | low confidence')
                                         self.SDC += 1
                                 else:
-                                    print('high score | different label')
+                                    # print('high score | different label')
                                     self.Critical += 1
 
                             elif f_score < 1 and f_score > 0.9:
 
                                 if f_candidate_lab == G_label:
-                                    print('medium score | same label')
+                                    # print('medium score | same label')
                                     self.SDC += 1
                                 else: 
-                                    print('medium score | different label')
+                                    # print('medium score | different label')
                                     self.Critical += 1
 
                             elif f_score < 0.9:
@@ -1125,7 +1125,7 @@ class FI_report_classifier(object):
                                 
                                 self.Full_report = pd.concat([self.Full_report,df],ignore_index=True)
                         else:
-                            print(f'len(remaining_bbs): {len(remaining_bbs)}')
+                            # print(f'len(remaining_bbs): {len(remaining_bbs)}')
                             if len(remaining_bbs) > 0:
                                 f_bb_counter += 1
                                 # faulty model analysis
