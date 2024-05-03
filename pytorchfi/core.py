@@ -228,11 +228,11 @@ class FaultInjection:
                         else:
                             layer.weight[corrupt_idx] = corrupt_value[inj]
 
-                    logger.info("Weight Injection")
-                    logger.info(f"Layer index: {corrupt_layer[inj]}")
-                    logger.info(f"Module: {layer}")
-                    logger.info(f"Original value: {orig_value}")
-                    logger.info(f"Injected value: {layer.weight[corrupt_idx]}")
+                    # logger.info("Weight Injection")
+                    # logger.info(f"Layer index: {corrupt_layer[inj]}")
+                    # logger.info(f"Module: {layer}")
+                    # logger.info(f"Original value: {orig_value}")
+                    # logger.info(f"Injected value: {layer.weight[corrupt_idx]}")
                 current_weight_layer += 1
         return self.corrupted_model
 
@@ -395,6 +395,9 @@ class FaultInjection:
 
     def get_weights_size(self, layer_num):
         return self.weights_size[layer_num]
+
+    def get_all_weights_sizes(self):
+        return self.weights_size
 
     def get_weights_dim(self, layer_num):
         return len(self.weights_size[layer_num])

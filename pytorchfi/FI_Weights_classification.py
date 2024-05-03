@@ -300,7 +300,8 @@ def generate_fault_list_sbfm(path,pfi_model:FaultInjection, **kwargs):
 
             # print(N)
             n=int(N/(1+(E**2)*(N-1)/((T**2)*P*(1-P))))
-            #print(n)                
+            # n=1
+            logger.info(n)                
             i=0
             while i<n:
                 if kK_param != None:
@@ -320,6 +321,107 @@ def generate_fault_list_sbfm(path,pfi_model:FaultInjection, **kwargs):
 
                 mask=2**(random.randint(LSB_injection,MSB_inection))                
                 fault=[layr,k,c,h,w,mask]
+                if fault not in fault_list :
+                    fault_list.append(fault)
+                    fault_dict={'layer':layr,'kernel':k,'channel':c,'row':h,'col':w,'bitmask':mask}
+                    new_row=pd.DataFrame(fault_dict, index=[0])
+                    f_list=pd.concat([f_list, new_row],ignore_index=True, sort=False)                                                        
+                    i+=1
+            f_list.to_csv(os.path.join(path,fault_list_file),sep=',')
+        else:
+            f_list = pd.read_csv(os.path.join(path,fault_list_file),index_col=[0]) 
+    return(f_list)
+
+def generate_fault_list_static_ber(path,pfi_model:FaultInjection, **kwargs):
+    T=1.64485362695147  #confidence level
+    E=0.01              #error margin
+    P=0.5               # Perrror
+    MSB_inection=31
+    LSB_injection=20
+    fault_list=[]   
+    f_list=pd.DataFrame()             
+    if kwargs:                               
+        fault_list_file=kwargs.get('f_list_file')
+        if not os.path.exists(os.path.join(path,fault_list_file)):                  
+            f_list=pd.DataFrame(columns=['layer','kernel','channel','row','col','bitmask'])            
+            layer_param=kwargs.get('layer')
+            kK_param=kwargs.get('kernel')
+            kC_param=kwargs.get('channel')
+            pfi_model.print_pytorchfi_layer_summary()            
+            print(pfi_model.get_total_layers())
+            is_static_ber = kwargs.get('BER', False)
+            logger.info(f'is_static_ber: {is_static_ber}')
+            if is_static_ber == False:
+                if layer_param!= None:
+                    layr=layer_param
+                else:
+                    layr=random.randint(0,pfi_model.get_total_layers()-1)
+                
+                
+                weight_shape=list(pfi_model.get_weights_size(layr))
+
+                # print(len(weight_shape))
+                if kK_param != None:
+                    N=1
+                else:
+                    N=weight_shape[0]
+                
+                if kC_param != None:
+                    N*=1
+                else:
+                    N*=weight_shape[1]
+                if(len(weight_shape)==4):
+                    N=N*weight_shape[2]*weight_shape[3]*(MSB_inection-LSB_injection+1)
+                else:
+                    N=N*(MSB_inection-LSB_injection+1)
+            else:
+                weight_shapes = pfi_model.get_all_weights_sizes()
+                N=0
+                for weight_shape in weight_shapes:
+                    if kK_param != None:
+                        params=1
+                    else:
+                        params=weight_shape[0]
+                    if kC_param != None:
+                        params*=1
+                    else:
+                        params*=weight_shape[1]
+                    if(len(weight_shape)==4):
+                        params=params*weight_shape[2]*weight_shape[3]*(MSB_inection-LSB_injection+1)
+                    else:
+                        params=params*(MSB_inection-LSB_injection+1)
+                    N += params
+            logger.info(f'N: {N}')
+            # logger.info(f'len(weight_shapes): {len(weight_shapes)}')
+            n=int(N/(1+(E**2)*(N-1)/((T**2)*P*(1-P))))
+            # n=1
+            logger.info(n)
+            i=0
+            while i<n:
+                if is_static_ber == True:
+                    layr =random.randint(0,len(weight_shapes)-1)
+                    weight_shape = pfi_model.get_layer_shape(layr)
+                else:
+                    layr=layer_param
+
+                if kK_param != None:
+                    k=kK_param
+                else:
+                    k=random.randint(0,weight_shape[0]-1)
+                if kC_param != None:
+                    c=kC_param
+                else:
+                    c=random.randint(0,weight_shape[1]-1)
+                if(len(weight_shape)==4):
+                    h=random.randint(0,weight_shape[2]-1)
+                    w=random.randint(0,weight_shape[3]-1)
+                else:
+                    h=None
+                    w=None
+
+                mask=2**(random.randint(LSB_injection,MSB_inection))
+                fault=[layr,k,c,h,w,mask]
+                # logger.info(f'fault: {fault}')
                 if fault not in fault_list :
                     fault_list.append(fault)
                     fault_dict={'layer':layr,'kernel':k,'channel':c,'row':h,'col':w,'bitmask':mask}
@@ -788,7 +890,9 @@ class FI_report_classifier(object):
                                         'img_Top1_Crit','img_Top1_SDC','img_Top1_Masked',
                                         'img_Topk_Crit','img_Topk_SDC','img_Topk_Masked',
                                         'fault_ACC@1','fault_ACC@k','Class_Top1','Class_Topk',
-                                        'goldenf1_1', 'goldenf1_k', 'fault_f1@1', 'fault_f1@k'])  
+                                        'goldenf1_1', 'goldenf1_k', 'fault_f1@1', 'fault_f1@k',
+                                        'goldenrec_1', 'goldenrec_k', 'fault_rec@1', 'fault_rec@k',
+                                        'goldenprec_1', 'goldenprec_k', 'fault_prec@1', 'fault_prec@k'])  
             self._fsim_report.to_csv(os.path.join(self.log_path,self.fault_report_filename),sep=',')
         else:
             self._fsim_report = pd.read_csv(os.path.join(self.log_path,self.fault_report_filename),index_col=[0])           
@@ -890,15 +994,23 @@ class FI_report_classifier(object):
         self._fault_dictionary['Class_Top1'] = self.Top1_faulty_code
         self._fault_dictionary['Class_Topk'] = self.Topk_faulty_code
     
-    def set_f1_values(self, best_f1, k_f1, header):
+    def set_f1_values(self, best_f1, k_f1, header, best_prec, best_rec, k_prec, k_rec):
         # logger.info(header)
         if header == 'Golden':
             self._fault_dictionary['goldenf1_1'] = best_f1.item()*100 
             self._fault_dictionary['goldenf1_k'] = k_f1.item()*100
+            self._fault_dictionary['goldenrec_1'] = best_rec.item()*100 
+            self._fault_dictionary['goldenrec_k'] = k_rec.item()*100
+            self._fault_dictionary['goldenprec_1'] = best_prec.item()*100 
+            self._fault_dictionary['goldenprec_k'] = k_prec.item()*100
         elif header == 'FSIM':
             # logger.info(f'best_f1: {best_f1}')
             self._fault_dictionary['fault_f1@1'] = best_f1.item()*100
             self._fault_dictionary['fault_f1@k'] = k_f1.item()*100
+            self._fault_dictionary['fault_rec@1'] = best_rec.item()*100 
+            self._fault_dictionary['fault_rec@k'] = k_rec.item()*100
+            self._fault_dictionary['fault_prec@1'] = best_prec.item()*100 
+            self._fault_dictionary['fault_prec@k'] = k_prec.item()*100
 
 
     def create_report(self,file_name):
@@ -914,7 +1026,6 @@ class FI_report_classifier(object):
         if os.path.exists(os.path.join(self.log_path,old_report_name)):
             os.system(f"mv {os.path.join(self.log_path,old_report_name)} {os.path.join(self.log_path,new_golden_name)}")
         self._report_dictionary=self.load_report(file_name)
-        logger.info(f'********: {self._report_dictionary}')
         
 
     def load_report(self,file_name):
@@ -1098,7 +1209,7 @@ class FI_framework(object):
     def int_to_float(self,h):
         return float(struct.unpack(">f",struct.pack(">I",h))[0])
 
-    def create_fault_injection_model(self,device,model,batch_size=1,input_shape=[3,224,224],layer_types=[torch.nn.Conv2d],Neurons=False): 
+    def create_fault_injection_model(self,device,model,batch_size=1,input_shape=[3,224,224],layer_types=[torch.nn.Conv2d],Neurons=False, BER=False): 
         if device.type.startswith('cuda'): 
             use_cuda=True
         else:
@@ -1109,15 +1220,14 @@ class FI_framework(object):
                         input_shape=input_shape,
                         layer_types=layer_types,
                         use_cuda=use_cuda,
-                        bits=8,
-                        )
+                        bits=8)
         else:
             self.pfi_model = FaultInjection(model, 
                         batch_size=batch_size,
                         input_shape=input_shape,
                         layer_types=layer_types,
                         use_cuda=use_cuda,
-                        )
+                        BER=BER)
         self.pfi_model.print_pytorchfi_layer_summary()
     
     def bit_flip_err_neuron(self,fault):
@@ -1318,7 +1428,7 @@ class DatasetSampling(object):
     def listindex(self):
         self.indices=[]
         for i in range(0,self.length):
-            if(i%50)<self.num_images:
+            if(i%1000)<self.num_images:
                 self.indices.append(i)
         return(self.indices)
 
@@ -1355,7 +1465,8 @@ class FI_manager(object):
 
             elif(kwargs.get('flist_mode')=='neurons'):
                 self._fault_list=generate_fault_neurons_tailing(self.log_path,self.pfi_model,**kwargs)
-
+            elif(kwargs.get('flist_mode') == 'static_ber'):
+                self._fault_list=generate_fault_list_static_ber(self.log_path,self.pfi_model,**kwargs)
             else:
                 raise ValueError("The fault list can't be generated in this configuration")
         else:
