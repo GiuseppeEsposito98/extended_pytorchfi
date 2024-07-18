@@ -300,7 +300,8 @@ def generate_fault_list_sbfm(path,pfi_model:FaultInjection, **kwargs):
 
             # print(N)
             n=int(N/(1+(E**2)*(N-1)/((T**2)*P*(1-P))))
-            #print(n)                
+            # n=1
+            logger.info(n)                
             i=0
             while i<n:
                 if kK_param != None:
@@ -330,6 +331,145 @@ def generate_fault_list_sbfm(path,pfi_model:FaultInjection, **kwargs):
         else:
             f_list = pd.read_csv(os.path.join(path,fault_list_file),index_col=[0]) 
     return(f_list)
+
+def generate_fault_list_static_ber(path,pfi_model:FaultInjection, **kwargs):
+    T=1.64485362695147  #confidence level
+    E=0.01              #error margin
+    P=0.5               # Perrror
+    MSB_inection=31
+    LSB_injection=0
+    fault_list=[]   
+    f_list=pd.DataFrame()
+    if kwargs:
+        fault_list_file=kwargs.get('f_list_file')
+        ber_list = kwargs.get('ber_list')
+        bit_loc = kwargs.get('bit_loc')
+        trials = kwargs.get('trials')
+
+        if not os.path.exists(os.path.join(path,fault_list_file)):
+            # if not os.path.exists(os.path.join(path,'..',fault_list_file)):
+            f_list=pd.DataFrame(columns=['ber', 'trial','layer','kernel','channel','row','col','bitmask'])
+            pfi_model.print_pytorchfi_layer_summary()
+
+            weight_shapes = pfi_model.get_all_weights_sizes()
+
+            N=0
+
+            for trial in range(trials):
+                logger.info(f'trial generated: {trial}')
+                for ber in ber_list:
+                    for layr_idx in range(len(weight_shapes)):
+                        weight_shape = weight_shapes[layr_idx]
+                        N=weight_shape[0]
+                        N*=weight_shape[1]
+                        if(len(weight_shape)==4):
+                            # N=N*weight_shape[2]*weight_shape[3]*(MSB_inection-LSB_injection+1)
+                            N=N*weight_shape[2]*weight_shape[3]
+                        # else:
+                        #     N=N*(MSB_inection-LSB_injection+1)
+                        
+                        n=N*float(ber)
+
+                        i = 0
+                        while i < n:
+                            k=random.randint(0,weight_shape[0]-1)
+                            c=random.randint(0,weight_shape[1]-1)
+                            if(len(weight_shape)==4):
+                                h=int(random.randint(0,weight_shape[2]-1))
+                                w=int(random.randint(0,weight_shape[3]-1))
+                            else:
+                                h=None
+                                w=None
+                            
+                            mask = 2**bit_loc
+                            fault=[ber,trial,layr_idx,k,c,h,w,mask]
+
+                            if fault not in fault_list:
+                                fault_list.append(fault)
+                                fault_dict={'ber':ber,'trial':trial,'layer':layr_idx,'kernel':k,'channel':c,'row':h,'col':w,'bitmask':mask}
+                                new_row=pd.DataFrame(fault_dict, index=[0])
+                                f_list=pd.concat([f_list, new_row],ignore_index=True)                                                        
+                                i+=1
+                    
+
+            f_list.to_csv(os.path.join(path,fault_list_file),sep=',')
+        else:
+            f_list = pd.read_csv(os.path.join(path,fault_list_file),index_col=[0]) 
+    logger.info(f_list)
+    return f_list
+
+def generate_fault_list_static_ber_fixed_layr(path,pfi_model:FaultInjection, **kwargs):
+    T=1.64485362695147  #confidence level
+    E=0.01              #error margin
+    P=0.5               # Perrror
+    MSB_inection=31
+    LSB_injection=0
+    fault_list=[]   
+    f_list=pd.DataFrame()
+    if kwargs:
+        fault_list_file=kwargs.get('f_list_file')
+        ber_list = kwargs.get('ber_list')
+        trials = kwargs.get('trials')
+        layr = kwargs.get('layr')
+
+        if not os.path.exists(os.path.join(path,fault_list_file)):
+            # if not os.path.exists(os.path.join(path,'..',fault_list_file)):
+            f_list=pd.DataFrame(columns=['ber', 'trial','layer','kernel','channel','row','col','bitmask'])
+            pfi_model.print_pytorchfi_layer_summary()
+
+            weight_shape = pfi_model.get_weights_size(layr)
+
+            N=1
+
+            N *= weight_shape[0]
+            # logger.info(f'weight_shape[0]: {weight_shape[0]}')
+            # logger.info(N)
+            N*=weight_shape[1]
+            # logger.info(f'weight_shape[1]: {weight_shape[1]}')
+            # logger.info(N)
+            if(len(weight_shape)==4):
+                N=N*weight_shape[2]*weight_shape[3]
+                # logger.info(f'weight_shape[2,3]: {weight_shape[2]*weight_shape[3]}')
+                # logger.info(N)
+
+            N=N*(MSB_inection-LSB_injection+1)
+
+
+            for trial in range(trials):
+                logger.info(f'trial generated: {trial}')
+                for ber in ber_list:
+                    n=N*float(ber)
+
+                    # layr_idx = random.randint(0,len(weight_shapes)-1)
+                    # weight_shape = weight_shapes[layr_idx]
+                    # logger.info(n)
+                    i = 0
+                    while i < n:
+                        k=random.randint(0,weight_shape[0]-1)
+                        c=random.randint(0,weight_shape[1]-1)
+                        if(len(weight_shape)==4):
+                            h=int(random.randint(0,weight_shape[2]-1))
+                            w=int(random.randint(0,weight_shape[3]-1))
+                        else:
+                            h=None
+                            w=None
+                        bit_loc = random.randint(LSB_injection, MSB_inection)
+                        mask = 2**bit_loc
+                        fault=[ber,trial,layr,k,c,h,w,mask]
+
+                        if fault not in fault_list:
+                            fault_list.append(fault)
+                            fault_dict={'ber':ber,'trial':trial,'layer':layr,'kernel':k,'channel':c,'row':h,'col':w,'bitmask':mask}
+                            new_row=pd.DataFrame(fault_dict, index=[0])
+                            f_list=pd.concat([f_list, new_row],ignore_index=True)                                                        
+                            i+=1
+                    
+
+            f_list.to_csv(os.path.join(path,fault_list_file),sep=',')
+        else:
+            f_list = pd.read_csv(os.path.join(path,fault_list_file),index_col=[0]) 
+    logger.info(f_list)
+    return f_list
 
 
 def generate_fault_list_sbfm_fails(path,pfi_model:FaultInjection, **kwargs):
@@ -788,7 +928,9 @@ class FI_report_classifier(object):
                                         'img_Top1_Crit','img_Top1_SDC','img_Top1_Masked',
                                         'img_Topk_Crit','img_Topk_SDC','img_Topk_Masked',
                                         'fault_ACC@1','fault_ACC@k','Class_Top1','Class_Topk',
-                                        'goldenf1_1', 'goldenf1_k', 'fault_f1@1', 'fault_f1@k'])  
+                                        'goldenf1_1', 'goldenf1_k', 'fault_f1@1', 'fault_f1@k',
+                                        'goldenrec_1', 'goldenrec_k', 'fault_rec@1', 'fault_rec@k',
+                                        'goldenprec_1', 'goldenprec_k', 'fault_prec@1', 'fault_prec@k'])  
             self._fsim_report.to_csv(os.path.join(self.log_path,self.fault_report_filename),sep=',')
         else:
             self._fsim_report = pd.read_csv(os.path.join(self.log_path,self.fault_report_filename),index_col=[0])           
@@ -798,13 +940,7 @@ class FI_report_classifier(object):
         self._update_chpt_info()
         self.update_fault_parse_results()
         self.reset_counter()
-        # fidx=self.check_point["fault_idx"]
-        # Report_name=f"FI_{fidx}_results.json"
-        # FI_report_json_file=os.path.join(self.log_path,Report_name)
-        # with open(FI_report_json_file,'w') as Golden_file:
-        #     json.dump(self._FI_results_dictionary,Golden_file)        
-        # self._FI_results_dictionary={}
-
+        # logger.info(f'self._fault_dictionary: {self._fault_dictionary}')
         new_row=pd.DataFrame(self._fault_dictionary, index=[0])
         self._fsim_report=pd.concat([self._fsim_report, new_row],ignore_index=True, sort=False)
         self._fsim_report.to_csv(os.path.join(self.log_path,'fsim_report.csv'),sep=',')  
@@ -890,15 +1026,23 @@ class FI_report_classifier(object):
         self._fault_dictionary['Class_Top1'] = self.Top1_faulty_code
         self._fault_dictionary['Class_Topk'] = self.Topk_faulty_code
     
-    def set_f1_values(self, best_f1, k_f1, header):
+    def set_f1_values(self, best_f1, k_f1, header, best_prec, best_rec, k_prec, k_rec):
         # logger.info(header)
         if header == 'Golden':
             self._fault_dictionary['goldenf1_1'] = best_f1.item()*100 
             self._fault_dictionary['goldenf1_k'] = k_f1.item()*100
+            self._fault_dictionary['goldenrec_1'] = best_rec.item()*100 
+            self._fault_dictionary['goldenrec_k'] = k_rec.item()*100
+            self._fault_dictionary['goldenprec_1'] = best_prec.item()*100 
+            self._fault_dictionary['goldenprec_k'] = k_prec.item()*100
         elif header == 'FSIM':
             # logger.info(f'best_f1: {best_f1}')
             self._fault_dictionary['fault_f1@1'] = best_f1.item()*100
             self._fault_dictionary['fault_f1@k'] = k_f1.item()*100
+            self._fault_dictionary['fault_rec@1'] = best_rec.item()*100 
+            self._fault_dictionary['fault_rec@k'] = k_rec.item()*100
+            self._fault_dictionary['fault_prec@1'] = best_prec.item()*100 
+            self._fault_dictionary['fault_prec@k'] = k_prec.item()*100
 
 
     def create_report(self,file_name):
@@ -914,7 +1058,6 @@ class FI_report_classifier(object):
         if os.path.exists(os.path.join(self.log_path,old_report_name)):
             os.system(f"mv {os.path.join(self.log_path,old_report_name)} {os.path.join(self.log_path,new_golden_name)}")
         self._report_dictionary=self.load_report(file_name)
-        logger.info(f'********: {self._report_dictionary}')
         
 
     def load_report(self,file_name):
@@ -957,12 +1100,10 @@ class FI_report_classifier(object):
             G_clas=torch.tensor(self.Golden['clas'],requires_grad=False).t()
             G_target=torch.tensor(self.Golden['target'],requires_grad=False)
             batch_size = G_target.size(0)
-            
             maxk=max(topk)
             mink=min(topk)
 
             CMPGolden=G_clas.eq(G_target[None])
-
             self.Gacc1=CMPGolden[:mink].sum(dim=0,dtype=torch.float32)
             self.Gacc5=CMPGolden[:maxk].sum(dim=0,dtype=torch.float32)
 
@@ -985,7 +1126,6 @@ class FI_report_classifier(object):
                 FI_clas=torch.tensor(self.Faulty['clas'],requires_grad=False).t()
                 FI_target=torch.tensor(self.Faulty['target'],requires_grad=False)
 
-                
                 CMPFaulty=FI_clas.eq(FI_target[None]) # bolean comparison between twoo tnesors of different shape
 
                 self.Facc1=CMPFaulty[:mink].sum(dim=0,dtype=torch.float32)
@@ -1057,7 +1197,7 @@ class FI_report_classifier(object):
         csv_report=f"{file_name}.csv"
         if(len(self.Full_report)>0):
             self.Full_report.to_csv(os.path.join(self.log_path,csv_report))
-           
+
         self._report_dictionary=self._FI_dictionary
         self._FI_dictionary={}
         self._golden_dictionary={}
@@ -1109,15 +1249,13 @@ class FI_framework(object):
                         input_shape=input_shape,
                         layer_types=layer_types,
                         use_cuda=use_cuda,
-                        bits=8,
-                        )
+                        bits=8)
         else:
             self.pfi_model = FaultInjection(model, 
                         batch_size=batch_size,
                         input_shape=input_shape,
                         layer_types=layer_types,
-                        use_cuda=use_cuda,
-                        )
+                        use_cuda=use_cuda)
         self.pfi_model.print_pytorchfi_layer_summary()
     
     def bit_flip_err_neuron(self,fault):
@@ -1193,6 +1331,18 @@ class FI_framework(object):
             )
 
         self.faulty_model.eval()
+    
+    def ber_bit_flip_weight_inj(self, fault_description, ber, trial, bitmask):
+        self.faulty_model=self.pfi_model.declare_ber_weight_fault_injection(
+            BitFlip=self._bit_flip_weight_ber, fault_description = fault_description, ber=ber, trial=trial, bitmask=bitmask)
+
+        self.faulty_model.eval()
+    
+    def ber_var_bit_flip_weight_inj(self, fault_description, ber, trial):
+        self.faulty_model=self.pfi_model.declare_var_bit_ber_weight_fault_injection(
+            BitFlip=self._bit_flip_weight_ber, fault_description = fault_description, ber=ber, trial=trial)
+
+        self.faulty_model.eval()
 
     def _bit_flip_weight(self,data, location, injmask):
         orig_data=data[location].item()
@@ -1213,6 +1363,26 @@ class FI_framework(object):
                     'Abs_error':(orig_data-corrupt_val)}
         self.injected_fault=fsim_dict
         return corrupt_val
+
+    def _bit_flip_weight_ber(self, data, location, injmask, ber, trial, error_list=None):
+        # logger.info(f'location: {location}')
+        orig_data=data[location].item()
+        # logger.info(f'orig_data: {orig_data}')
+        data_32bit=int(self.float_to_hex(data[location].item()),16)
+        # logger.info(f'data_32bit: {data_32bit}')
+        # logger.info(f'injmask: {injmask}')
+        corrupt_32bit=data_32bit ^ int(injmask)
+        corrupt_val=self.int_to_float(corrupt_32bit)
+        self.log_msg=f"F_descriptor: Layer:{self._layer}, (K, C, H, W):{location}, BitMask:{injmask}, Ffree_Weight:{data_32bit}, Faulty_weight:{corrupt_32bit}"
+        fsim_dict={'ber': ber,
+                    'trail':trial,
+                    'induced_error': pd.Series(error_list).mean()}
+
+        self.injected_fault=fsim_dict
+        induced_error = abs(corrupt_val-orig_data)
+        # logger.info(f'corrupt_val: {corrupt_val}')
+        # corrupted_values.append(corrupt_val)
+        return corrupt_val,induced_error
     
 
     def BER_weight_inj(self, BER, layer=None, kK=None, kC=None, kH=None, kW=None, inj_mask=None):       
@@ -1318,7 +1488,7 @@ class DatasetSampling(object):
     def listindex(self):
         self.indices=[]
         for i in range(0,self.length):
-            if(i%50)<self.num_images:
+            if(i%1000)<self.num_images:
                 self.indices.append(i)
         return(self.indices)
 
@@ -1355,20 +1525,38 @@ class FI_manager(object):
 
             elif(kwargs.get('flist_mode')=='neurons'):
                 self._fault_list=generate_fault_neurons_tailing(self.log_path,self.pfi_model,**kwargs)
-
+            elif(kwargs.get('flist_mode') == 'static_ber'):
+                self._fault_list=generate_fault_list_static_ber(self.log_path,self.pfi_model,**kwargs)
+            elif(kwargs.get('flist_mode') == 'static_ber_fixed_layr'):
+                self._fault_list=generate_fault_list_static_ber_fixed_layr(self.log_path,self.pfi_model,**kwargs)
             else:
                 raise ValueError("The fault list can't be generated in this configuration")
         else:
             raise ValueError("The input arguments are wrong, please be sure you selected at least the fault list name in csv format")
-        
+    
     def iter_fault_list(self):
         for k in range(int(self.FI_report.check_point["fault_idx"]),len(self._fault_list)):
             fault_info=self._fault_list.iloc[[k]]
             fault=fault_info.to_dict('records')
-            yield (fault, k)    
+            yield (fault, k)
+
+    def iter_fault_list_ber(self, trial):
+        if 'trial' in self._fault_list.columns:
+            fault_df = self._fault_list.query(f"trial=={trial}")
+        # for k in range(int(self.FI_report.check_point["fault_idx"]),len(fault_df)):
+        for k in range(int(len(fault_df))):
+            fault_info=self.fault_df.iloc[[k]]
+            fault=fault_info.to_dict('records')
+            logger.info
+            yield (fault, k)
+
+    def get_trial_list(self, ber, trial):
+        fault_df = self._fault_list.query(f"ber=={ber} & trial=={trial}")
+        return fault_df
 
     def write_reports(self):
         self.FI_report.set_fault_report(self.FI_framework.injected_fault)
+        logger.info(f'self.FI_framework.injected_fault: {self.FI_framework.injected_fault}')
         self.FI_report.update_check_point()
         file_name=self._faulty_file_name.split('/')[-1].split('.')[0]
         csv_report=f"{file_name}.csv"

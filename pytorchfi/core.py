@@ -7,11 +7,13 @@ from typing import List
 
 import torch
 import torch.nn as nn
-
+from torchdistill.common.constant import def_logger
+import numpy as np
+logger = def_logger.getChild(__name__)
  
 
-logger=logging.getLogger("pytorchfi") 
-logger.setLevel(logging.DEBUG) 
+# logger=logging.getLogger("pytorchfi") 
+# logger.setLevel(logging.DEBUG) 
 
 class FaultInjection:
     def __init__(
@@ -59,13 +61,14 @@ class FaultInjection:
         handles, _shapes, self.weights_size = self._traverse_model_set_hooks(
             self.original_model, self._inj_layer_types
         )
-
+ 
         dummy_shape = (1, *self._input_shape)  # profiling only needs one batch element
         model_dtype = next(model.parameters()).dtype
         device = "cuda" if self.use_cuda else None
         _dummy_tensor = torch.randn(dummy_shape, dtype=model_dtype, device=device)
 
-        self.original_model(_dummy_tensor)
+        with torch.no_grad():
+            self.original_model(_dummy_tensor)
 
         for index, _handle in enumerate(handles):
             handles[index].remove()
@@ -228,13 +231,134 @@ class FaultInjection:
                         else:
                             layer.weight[corrupt_idx] = corrupt_value[inj]
 
-                    logger.info("Weight Injection")
-                    logger.info(f"Layer index: {corrupt_layer[inj]}")
-                    logger.info(f"Module: {layer}")
-                    logger.info(f"Original value: {orig_value}")
-                    logger.info(f"Injected value: {layer.weight[corrupt_idx]}")
+                    # logger.info("Weight Injection")
+                    # logger.info(f"Layer index: {corrupt_layer[inj]}")
+                    # logger.info(f"Module: {layer}")
+                    # logger.info(f"Original value: {orig_value}")
+                    # logger.info(f"Injected value: {layer.weight[corrupt_idx]}")
                 current_weight_layer += 1
         return self.corrupted_model
+    
+    def declare_ber_weight_fault_injection(self, **kwargs):
+        self._reset_fault_injection_state()
+        custom_injection = False
+        custom_function = False        
+        bitflip_injection = False
+
+        if kwargs:
+            if "function" in kwargs:
+                custom_injection, custom_function = True, kwargs.get("function")
+                corrupt_layer = None
+            elif "BitFlip" in kwargs:
+                bitflip_injection, custom_injection, custom_function = True, True, kwargs.get("BitFlip")
+                corrupt_layer = None
+            else:
+                corrupt_layer = kwargs.get(
+                    "layer_num",
+                )
+            fault_description = kwargs.get("fault_description")
+            bitmask= kwargs.get('bitmask')
+            ber = kwargs.get('ber')
+            trial = kwargs.get('trial')
+        else:
+            raise ValueError("Please specify an injection or injection function")
+
+        self.corrupted_model = copy.deepcopy(self.original_model)
+        current_weight_layer = 0
+        induced_errors = list()
+        for layer in self.corrupted_model.modules():
+            if isinstance(layer, torch.nn.modules.conv.Conv2d):
+                fault_description_per_layer = fault_description.query(f'layer=={current_weight_layer}')
+                corrupt_idxs = np.array(fault_description_per_layer[['kernel','channel','row','col']], dtype=int)
+                for idxs in corrupt_idxs:
+                    with torch.no_grad():
+                        if custom_injection:
+                            if bitflip_injection:
+                                corrupt_val, induced_error = custom_function(layer.weight, tuple(idxs), bitmask, ber, len(fault_description_per_layer), trial, induced_errors)
+                            else:
+                                corrupt_val, induced_error = custom_function(layer.weight, tuple(idxs), bitmask, ber, len(fault_description_per_layer), trial, induced_errors)
+                            layer.weight[tuple(idxs)] = corrupt_val
+                            induced_errors.append(induced_error)
+                current_weight_layer += 1
+                
+            elif isinstance(layer, torch.nn.modules.linear.Linear):
+                fault_description_per_layer = fault_description.query(f'layer=={current_weight_layer}')
+                corrupt_idxs = np.array(fault_description_per_layer[['kernel','channel']], dtype=int)
+                for idxs in corrupt_idxs:
+                    with torch.no_grad():
+                        if custom_injection:
+                            if bitflip_injection:
+                                corrupt_val, induced_error = custom_function(layer.weight, tuple(idxs), bitmask, ber, len(fault_description_per_layer), trial, induced_errors)
+                            else:
+                                corrupt_val, induced_error = custom_function(layer.weight, tuple(idxs), bitmask, ber, len(fault_description_per_layer), trial, induced_errors)
+                            layer.weight[tuple(idxs)] = corrupt_val
+                            induced_errors.append(induced_error)
+                current_weight_layer += 1
+
+        return self.corrupted_model
+    
+    def declare_var_bit_ber_weight_fault_injection(self, **kwargs):
+        self._reset_fault_injection_state()
+        custom_injection = False
+        custom_function = False        
+        bitflip_injection = False
+
+        if kwargs:
+            if "function" in kwargs:
+                custom_injection, custom_function = True, kwargs.get("function")
+                corrupt_layer = None
+            elif "BitFlip" in kwargs:
+                bitflip_injection, custom_injection, custom_function = True, True, kwargs.get("BitFlip")
+                corrupt_layer = None
+            else:
+                corrupt_layer = kwargs.get(
+                    "layer_num",
+                )
+            fault_description = kwargs.get("fault_description")
+            ber = kwargs.get('ber')
+            trial = kwargs.get('trial')
+        else:
+            raise ValueError("Please specify an injection or injection function")
+
+        self.corrupted_model = copy.deepcopy(self.original_model)
+        current_weight_layer = 0
+        induced_errors = list()
+        for layer in self.corrupted_model.modules():
+
+            if isinstance(layer, torch.nn.modules.conv.Conv2d):
+                fault_description_per_layer = fault_description.query(f'layer=={current_weight_layer}')
+                corrupt_idxs = np.array(fault_description_per_layer[['kernel','channel','row','col']], dtype=int)
+                bitmasks = np.array(fault_description_per_layer[['bitmask']], dtype=int)
+
+                for idxs, bitmask in zip(corrupt_idxs, bitmasks):
+                    with torch.no_grad():
+                        if custom_injection:
+                            if bitflip_injection:
+                                corrupt_val, induced_error = custom_function(layer.weight, tuple(idxs), bitmask, ber, trial, induced_errors)
+                            else:
+                                corrupt_val, induced_error = custom_function(layer.weight, tuple(idxs), bitmask, ber, trial, induced_errors)
+                            layer.weight[tuple(idxs)] = corrupt_val
+                            induced_errors.append(induced_error)
+                current_weight_layer += 1
+                
+            elif isinstance(layer, torch.nn.modules.linear.Linear):
+                fault_description_per_layer = fault_description.query(f'layer=={current_weight_layer}')
+                corrupt_idxs = np.array(fault_description_per_layer[['kernel','channel']], dtype=int)
+                bitmasks = np.array(fault_description_per_layer[['bitmask']], dtype=int)
+
+                for idxs, bitmask in zip(corrupt_idxs, bitmasks):
+                    with torch.no_grad():
+                        if custom_injection:
+                            if bitflip_injection:
+                                corrupt_val, induced_error = custom_function(layer.weight, tuple(idxs), bitmask, ber, trial, induced_errors)
+                            else:
+                                corrupt_val, induced_error = custom_function(layer.weight, tuple(idxs), bitmask, ber, trial, induced_errors)
+                            layer.weight[tuple(idxs)] = corrupt_val
+                            induced_errors.append(induced_error)
+                current_weight_layer += 1
+
+        return self.corrupted_model
+ 
 
     def declare_neuron_fault_injection(self, **kwargs):
         self._reset_fault_injection_state()
@@ -395,6 +519,9 @@ class FaultInjection:
 
     def get_weights_size(self, layer_num):
         return self.weights_size[layer_num]
+
+    def get_all_weights_sizes(self):
+        return self.weights_size
 
     def get_weights_dim(self, layer_num):
         return len(self.weights_size[layer_num])
