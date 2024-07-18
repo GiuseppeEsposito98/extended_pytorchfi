@@ -1238,7 +1238,7 @@ class FI_framework(object):
     def int_to_float(self,h):
         return float(struct.unpack(">f",struct.pack(">I",h))[0])
 
-    def create_fault_injection_model(self,device,model,batch_size=1,input_shape=[3,224,224],layer_types=[torch.nn.Conv2d],Neurons=False): 
+    def create_fault_injection_model(self,device,model,batch_size=1,input_shape=[3,224,224],layer_types=[torch.nn.Conv2d],Neurons=False, BER=False): 
         if device.type.startswith('cuda'): 
             use_cuda=True
         else:
@@ -1255,7 +1255,8 @@ class FI_framework(object):
                         batch_size=batch_size,
                         input_shape=input_shape,
                         layer_types=layer_types,
-                        use_cuda=use_cuda)
+                        use_cuda=use_cuda,
+                        BER=BER)
         self.pfi_model.print_pytorchfi_layer_summary()
     
     def bit_flip_err_neuron(self,fault):
