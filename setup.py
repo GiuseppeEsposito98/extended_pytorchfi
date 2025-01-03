@@ -16,17 +16,17 @@ setup(
     author_email="",
     description=DESCRIPTION,
     long_description=LONG_DESCRIPTION,
-    url="https://github.com/divadnauj-GB/pytorchfi_SC",
+    url="https://github.com/GiuseppeEsposito98/APP_Fault_injections",
     packages=find_packages(exclude=('tests', 'scripts', 'Demo')),
     python_requires='>=3.7',
     install_requires=[
-        'torch>=1.12.1',
-        'torchvision>=0.13.1',
+        'torch>=1.12.2',
+        'torchvision>=0.13.2',
         'numpy',
-        'pyyaml>=5.4.1',
+        'pyyaml==5.4.1',
         'scipy',
         'cython',
-        'pycocotools>=2.0.2'
+        'pycocotools==2.0.2'
     ],
     extras_require={
         'test': ['pytest']

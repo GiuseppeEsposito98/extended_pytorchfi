@@ -446,6 +446,8 @@ class single_bit_flip_func(core.FaultInjection):
         if self.current_layer >= len(self.output_size):
             self.reset_current_layer()
 
+        
+
 def random_neuron_single_bit_inj_batched(
     pfi: core.FaultInjection, layer_ranges, batch_random=True
 ):

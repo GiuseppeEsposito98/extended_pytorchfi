@@ -18,6 +18,7 @@ import pytorchfi.core as core
 from pytorchfi.util import random_value
 from pytorchfi.core import *
 from pytorchfi.neuron_error_models import *
+from torch.nn.functional import softmax
 
 logger=logging.getLogger("Fault_injection") 
 logger.setLevel(logging.DEBUG) 
@@ -1270,9 +1271,6 @@ class FI_framework(object):
         size_tail_x=fault[0]['size_tail_x']
         bit_faulty_pos=fault[0]['bit_faulty_pos']
 
-
-        #locations=([generate_error_list_neurons(self.pfi_model,layer=layer) for _ in range(berr)] * self.pfi_model.batch_size)
-        #batch_order=[i for i in range(self.pfi_model.batch_size)]*berr        
         (locations,batch_order,fault_info)=generate_error_list_neurons_tails(self.pfi_model,
                                                                   layer_i=layer_start,
                                                                   layer_n=layer_stop,
