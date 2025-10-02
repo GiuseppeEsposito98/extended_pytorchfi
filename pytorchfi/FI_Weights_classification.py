@@ -23,70 +23,8 @@ from torch.nn.functional import softmax
 logger=logging.getLogger("Fault_injection") 
 logger.setLevel(logging.DEBUG) 
 
-# _bf_inj_w_mask=0
-# _layer=0
 
 
-# def float_to_hex(f):
-#     h=hex(struct.unpack('<I', struct.pack('<f', f))[0])
-#     return h[2:len(h)]
-
-
-# def hex_to_float(h):
-#     return float(struct.unpack(">f",struct.pack(">I",int(h,16)))[0])
-
-# def int_to_float(h):
-#     return float(struct.unpack(">f",struct.pack(">I",h))[0])
-    
-
-
-# def _log_faults(Log_string):
-#     with open("./FSIM_logs/Fsim_log.log",'a+') as logfile:
-#         logfile.write(Log_string+'\n')
-
-# def bit_flip_weight_inj(pfi: core.FaultInjection, layer, k, c_in, kH, kW, inj_mask):
-#     global _bf_inj_w_mask
-#     global _layer
-#     _bf_inj_w_mask=inj_mask
-#     _layer=layer
-#     return pfi.declare_weight_fault_injection(
-#         function=_bit_flip_weight, layer_num=layer, k=k, dim1=c_in, dim2=kH, dim3=kW
-#     )
-
-# def _bit_flip_weight(data, location):
-#     orig_data=data[location].item()
-#     data_32bit=int(float_to_hex(data[location].item()),16)
-
-#     #print(_bf_inj_w_mask)
-
-#     corrupt_32bit=data_32bit ^ int(_bf_inj_w_mask[0])
-#     corrupt_val=int_to_float(corrupt_32bit)
-#     #print(data_32bit,_bf_inj_w_mask,corrupt_32bit, orig_data, corrupt_val)
-#     log_msg=f"F_descriptor: Layer:{_layer}, (K, C, H, W):{location}, BitMask:{_bf_inj_w_mask[0]}, Ffree_Weight:{data_32bit}, Faulty_weight:{corrupt_32bit}"
-#     logger.info(log_msg)
-#     _log_faults(log_msg)
-#     return corrupt_val
-
-#     # k, c, H, W
-
-        
-        
-    # def update_fault_dictionary(self,key,val):           
-    #     if self._layer not in self.fault_dictionary:
-    #         self.fault_dictionary[self._layer]={}            
-    #     if self._kK not in self.fault_dictionary[self._layer]:
-    #         self.fault_dictionary[self._layer][self._kK]={}
-    #     if self._kC not in  self.fault_dictionary[self._layer][self._kK]:
-    #         self.fault_dictionary[self._layer][self._kK][self._kC]={}
-    #     if self._kH not in  self.fault_dictionary[self._layer][self._kK][self._kC]:
-    #         self.fault_dictionary[self._layer][self._kK][self._kC][self._kH]={}
-    #     if self._kW not in  self.fault_dictionary[self._layer][self._kK][self._kC][self._kH]:                            
-    #         self.fault_dictionary[self._layer][self._kK][self._kC][self._kH][self._kW]={}  
-    #     if self._inj_mask not in  self.fault_dictionary[self._layer][self._kK][self._kC][self._kH][self._kW]:
-    #         self.fault_dictionary[self._layer][self._kK][self._kC][self._kH][self._kW][self._inj_mask]={}
-    #     self.fault_dictionary[self._layer][self._kK][self._kC][self._kH][self._kW][self._inj_mask][key]=val
-
-        # k, c, H, W
 def float_to_bin(f):
     h=hex(struct.unpack('<I', struct.pack('<f', f))[0])
     weight_bin_clean="{:032b}".format(int(h[2:len(h)],16))
@@ -399,6 +337,38 @@ def generate_fault_list_static_ber(path,pfi_model:FaultInjection, **kwargs):
     logger.info(f_list)
     return f_list
 
+def generate_fault_neurons_rand_single(path, **kwargs): 
+    fault_dict={}
+    f_list=pd.DataFrame()             
+    if kwargs:                               
+        fault_list_file=kwargs.get('f_list_file')
+        if not os.path.exists(os.path.join(path,fault_list_file)):                  
+            # f_list=pd.DataFrame(columns=['layer','kernel','channel','height','width','bitmask'])     
+            Num_trials=kwargs.get('trials') 
+            bers = kwargs.get('bers')    
+            layer = kwargs.get('layer')    
+            bit_faulty_pos = kwargs.get('bit_faulty_pos', None)
+
+            fault_dict['layer'] = layer
+            for ber in bers:
+                fault_dict['ber'] = ber
+                # for bit_pos_fault in range(19,32):
+                for _ in (range(Num_trials)):
+                    if bit_faulty_pos == None:
+                        for bit_loc in range(19,31):
+                            fault_dict['bit_faulty_pos'] = bit_loc
+                            new_row=pd.DataFrame(fault_dict, index=[0])
+                            f_list=pd.concat([f_list, new_row],ignore_index=True, sort=False)
+                    else:
+                        fault_dict['bit_faulty_pos'] = bit_faulty_pos
+                        new_row=pd.DataFrame(fault_dict, index=[0])
+                        f_list=pd.concat([f_list, new_row],ignore_index=True, sort=False)
+
+            f_list.to_csv(os.path.join(path,fault_list_file),sep=',')
+        else:
+            f_list = pd.read_csv(os.path.join(path,fault_list_file),index_col=[0]) 
+    return(f_list)
+
 def generate_fault_list_static_ber_fixed_layr(path,pfi_model:FaultInjection, **kwargs):
     T=1.64485362695147  #confidence level
     E=0.01              #error margin
@@ -690,6 +660,48 @@ def generate_error_list_neurons(pfi_model:FaultInjection,layer=-1,channel=-1,row
 
     return (layer, dim1_rand, dim2_rand, dim3_rand)
 
+def generate_error_list_neurons_rand(pfi_model:FaultInjection,layer=-1, ber=0.0001):
+    locations = list()
+    if layer == -1:
+        layer = random.randint(0, pfi_model.get_total_layers() - 1)
+
+    dim = pfi_model.get_layer_dim(layer)
+    shape = pfi_model.get_layer_shape(layer)
+
+    dim3_shape=1
+    dim2_shape=1
+    print(shape)
+    if len(shape) == 4:
+        dim1_shape = shape[1]
+        dim2_shape = shape[2]
+        dim3_shape = shape[3]
+    else:
+        dim1_shape = shape[1]
+        # dim2_shape = shape[2]
+
+    corr_neurons = math.ceil(((dim1_shape*dim2_shape*dim3_shape) * ber))
+
+    
+    finished = False
+    print(f'Number of injections: {corr_neurons}')
+    while not finished:
+        if len(shape) == 4:
+            dim1_rand = random.randint(0,dim1_shape-1)
+            dim2_rand = random.randint(0,dim2_shape-1)
+            dim3_rand = random.randint(0,dim3_shape-1)
+            single_location =  (layer, dim1_rand, dim2_rand, dim3_rand)
+        else:
+            dim1_rand = random.randint(0,dim1_shape-1)
+            single_location =  (layer, dim1_rand)
+        
+        if single_location not in locations:
+            locations.append(single_location)
+
+            if len(locations) >= corr_neurons:
+                finished = True
+
+    batch_order = [0 for _ in range(corr_neurons)]
+    return locations, batch_order, 
 
 def loc_neuron(layer=-1,dim=1,shape=[],BlockID_y=1,BlockID_x=1,Neuron_x=-1,Neuron_y=-1,tail_bloc_y=1,tail_bloc_x=1,):
     if Neuron_y==-1:
@@ -1305,6 +1317,59 @@ class FI_framework(object):
             logger.info(self.log_msg)
         self.log_msg=""
         self.faulty_model.eval()
+    
+    def bit_flip_err_neuron_lyr(self,fault):
+        
+        print(fault[0])
+        layer=fault[0]['layer']
+        ber=fault[0]['ber']
+        bit_faulty_pos=fault[0]['bit_faulty_pos']
+
+
+        #locations=([generate_error_list_neurons(self.pfi_model,layer=layer) for _ in range(berr)] * self.pfi_model.batch_size)
+        #batch_order=[i for i in range(self.pfi_model.batch_size)]*berr        
+        (locations,batch_order)=generate_error_list_neurons_rand(self.pfi_model,
+                                                                  layer=layer,
+                                                                  ber=ber)        
+        
+        #logger.info()
+        
+        # this weird list is andatory for the original fasult injector 
+        #self.pfi_model.set_conv_max([255.0 for _ in range(self.pfi_model.get_total_layers())])
+
+        # here I changed it in order to inject bit-flips, more representative
+        self.pfi_model.set_conv_max([bit_faulty_pos])
+
+        #print(locations)
+        #(layer, C, H, W) = random_neuron_location(self.pfi_model)
+        if len(locations[0]) > 2:
+            random_layers, random_c, random_h, random_w = map(list, zip(*locations))
+            print(f"lengts={len(random_layers)} {len(batch_order)} {len(random_c)} {len(random_h)} {len(random_w)}")
+            #print(batch_order, random_layers, random_c, random_h, random_w)
+            self.faulty_model = self.pfi_model.declare_neuron_fault_injection(
+                layer_num=random_layers,
+                batch=batch_order,
+                dim1=random_c,
+                dim2=random_h,
+                dim3=random_w,
+                function=self.pfi_model.single_bit_flip_across_batch_tensor,
+            )
+        else:
+            random_layers, random_c= map(list, zip(*locations))
+            print(f"lengts={len(random_layers)} {len(batch_order)} {len(random_c)}")
+            #print(batch_order, random_layers, random_c, random_h, random_w)
+            self.faulty_model = self.pfi_model.declare_neuron_fault_injection(
+                layer_num=random_layers,
+                batch=batch_order,
+                dim1=random_c,
+                function=self.pfi_model.single_bit_flip_across_batch_tensor,
+            )
+        # for key in fault_info:
+        self.log_msg=f"layer: {layer}, ber: {ber} bit_loc:{bit_faulty_pos}, "
+        # logger.info(self.log_msg, extra=extra)
+        # logger.info(self.log_msg)
+        self.log_msg=""
+        # self.faulty_model.eval()
 
     def bit_flip_weight_inj(self, fault):
         layer=[fault[0]['layer']]
@@ -1528,6 +1593,8 @@ class FI_manager(object):
                 self._fault_list=generate_fault_list_static_ber(self.log_path,self.pfi_model,**kwargs)
             elif(kwargs.get('flist_mode') == 'static_ber_fixed_layr'):
                 self._fault_list=generate_fault_list_static_ber_fixed_layr(self.log_path,self.pfi_model,**kwargs)
+            elif(kwargs.get('flist_mode')=='neurons_rand_single_layer'):
+                self._fault_list=generate_fault_neurons_rand_single(self.log_path,self.pfi_model,**kwargs)
             else:
                 raise ValueError("The fault list can't be generated in this configuration")
         else:
@@ -1537,7 +1604,7 @@ class FI_manager(object):
         for k in range(int(self.FI_report.check_point["fault_idx"]),len(self._fault_list)):
             fault_info=self._fault_list.iloc[[k]]
             fault=fault_info.to_dict('records')
-            yield (fault, k)
+            yield (fault, int(fault_info.index.values))
 
     def iter_fault_list_ber(self, trial):
         if 'trial' in self._fault_list.columns:
