@@ -12,7 +12,7 @@ LONG_DESCRIPTION='pytorchfi description'
 setup(
     name="pytorchfi",
     version=VERSION,
-    author="Juan David Guerrero",
+    author="Giuseppe Esposito",
     author_email="",
     description=DESCRIPTION,
     long_description=LONG_DESCRIPTION,
