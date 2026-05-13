@@ -7,9 +7,10 @@ from typing import List
 
 import torch
 import torch.nn as nn
-from torchdistill.common.constant import def_logger
+# from torchdistill.common.constant import def_logger
 import numpy as np
-logger = def_logger.getChild(__name__)
+import logging
+logger = logging.getLogger(__name__)
  
 
 # logger=logging.getLogger("pytorchfi") 

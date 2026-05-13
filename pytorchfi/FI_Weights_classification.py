@@ -348,7 +348,6 @@ def generate_fault_neurons_rand_single(path, **kwargs):
             bers = kwargs.get('bers')    
             layer = kwargs.get('layer')    
             bit_faulty_pos = kwargs.get('bit_faulty_pos', None)
-
             fault_dict['layer'] = layer
             for ber in bers:
                 fault_dict['ber'] = ber
@@ -1312,10 +1311,10 @@ class FI_framework(object):
             dim3=random_w,
             function=self.pfi_model.single_bit_flip_across_batch_tensor,
         )
-        for key in fault_info:
-            self.log_msg=f"Fault=layer:{fault_info[key]['layer']}, block_rate:{block_fault_rate}, neuron_rate:{neuron_fault_rate}, tot_blocks:{fault_info[key]['tot_blocks']}, faulty_blocks:{fault_info[key]['faulty_blocks']}, faulty_neuron:{fault_info[key]['faulty_neuron']}, bit_loc:{bit_faulty_pos}, "
-            logger.info(self.log_msg)
-        self.log_msg=""
+        # for key in fault_info:
+            # self.log_msg=f"Fault=layer:{fault_info[key]['layer']}, block_rate:{block_fault_rate}, neuron_rate:{neuron_fault_rate}, tot_blocks:{fault_info[key]['tot_blocks']}, faulty_blocks:{fault_info[key]['faulty_blocks']}, faulty_neuron:{fault_info[key]['faulty_neuron']}, bit_loc:{bit_faulty_pos}, "
+            # logger.info(self.log_msg)
+        # self.log_msg=""
         self.faulty_model.eval()
     
     def bit_flip_err_neuron_lyr(self,fault):
@@ -1593,8 +1592,8 @@ class FI_manager(object):
                 self._fault_list=generate_fault_list_static_ber(self.log_path,self.pfi_model,**kwargs)
             elif(kwargs.get('flist_mode') == 'static_ber_fixed_layr'):
                 self._fault_list=generate_fault_list_static_ber_fixed_layr(self.log_path,self.pfi_model,**kwargs)
-            elif(kwargs.get('flist_mode')=='neurons_rand_single_layer'):
-                self._fault_list=generate_fault_neurons_rand_single(self.log_path,self.pfi_model,**kwargs)
+            elif(kwargs.get('flist_mode')=='neuronsBER'):
+                self._fault_list=generate_fault_neurons_rand_single(self.log_path,**kwargs) # ,self.pfi_model
             else:
                 raise ValueError("The fault list can't be generated in this configuration")
         else:

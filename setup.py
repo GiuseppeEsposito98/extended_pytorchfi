@@ -25,8 +25,7 @@ setup(
         'numpy',
         'pyyaml==5.4.1',
         'scipy',
-        'cython',
-        'pycocotools==2.0.2'
+        'cython'
     ],
     extras_require={
         'test': ['pytest']
